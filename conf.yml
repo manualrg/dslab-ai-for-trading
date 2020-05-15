@@ -1,5 +1,0 @@
-quantopian:
-    bundle_folder: module_4_quizzes_eod
-    bundle_name: m4-quiz-eod-quotemedia
-    sector_folder: project_4_sector
-    sector_data: data.npy
