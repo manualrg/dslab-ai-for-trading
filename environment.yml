@@ -22,3 +22,6 @@ dependencies:
   - tqdm==4.46.0
   - shap==0.26.0
   - quandl==3.4.2
+  - pip:
+    - https://files.pythonhosted.org/packages/34/fe/c3bef165ecca4f33c77c3e97aebf6fcd048c487fb2d1ba964839fa9fc38b/simfin-0.8.1-py3-none-any.whl
+  
