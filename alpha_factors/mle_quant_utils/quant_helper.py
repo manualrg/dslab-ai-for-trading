@@ -64,3 +64,27 @@ def get_pricing(data_portal, trading_calendar, assets, start_date, end_date, fie
         frequency='1d',
         field=field,
         data_frequency='daily')
+
+
+def cast_zipline_multidx_to_symbol(df):
+    """
+    # zipline.assets._assets.Equity -> str
+    :param df:
+    :return:
+    """
+    assert isinstance(df.index, pd.MultiIndex)
+    assert isinstance(df.index.get_level_values(0), pd.DatetimeIndex)
+
+    symbol_index_data = [(dt, equity.symbol) for dt, equity in df.index.values]
+    df_cast = df.set_index(
+        pd.MultiIndex.from_tuples(symbol_index_data, names=['date', 'asset']))
+    return df_cast
+
+def cast_zipline_multidx_to_unixdt(df):
+    assert isinstance(df.index, pd.MultiIndex)
+    assert isinstance(df.index.get_level_values(0), pd.DatetimeIndex)
+
+    unixt_index_data = [(dt.timestamp(), equity) for dt, equity in df.index.values]
+    df_cast = df.set_index(
+        pd.MultiIndex.from_tuples(unixt_index_data, names=['date', 'asset']))
+    return df_cast

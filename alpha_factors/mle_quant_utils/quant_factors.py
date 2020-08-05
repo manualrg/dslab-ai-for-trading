@@ -59,19 +59,79 @@ def factor_evaluation(factor_data, factor_names, frequency="daily"):
     return df_factor_return, df_sharpe, df_rank_ic, df_fra, df_qr
 
 # Region alpha_factors
-def momentum_1yr(window_length, universe, sector):
-    return Returns(window_length=window_length, mask=universe).demean(groupby=sector).rank().zscore()
+# 1yr returns
+def momentum(window_length, universe, sector):
+    """
+    Higher past 12-month (252 days) returns are proportional to future return
+
+    Parameters
+    ----------
+    window_length : int
+        Returns window length
+    universe : Zipline Filter
+        Universe of stocks filter
+    sector : Zipline Classifier
+        Sector classifier
+
+    Returns
+    -------
+    factor : Zipline Factor
+        Mean reversion 5 day sector neutral factor
+    """
+    return Returns(window_length=window_length, mask=universe) \
+        .demean(groupby=sector) \
+        .rank() \
+        .zscore()
+
+def momentum_smoothed(window_length, smooth_window_length, universe, sector):
+    """
+    Smoothed version of momentum. window_lenghth is used in returns and smoothing computations
+     Parameters
+    ----------
+    smooth_window_length : int
+        smoothing factor to applie to SimpleMovingAverage
+    """
+    unsmoothed_factor = momentum(window_length, universe, sector)
+    return SimpleMovingAverage(inputs=[unsmoothed_factor], window_length=smooth_window_length) \
+        .rank() \
+        .zscore()
+
+# 5d men reversion
+def mean_reversion_sector_neutral(window_length, universe, sector):
+    """
+    Short-term outperformers(underperformers) compared to their sector will revert.
+    Generate the mean reversion 5 day sector neutral factor
+
+    Parameters
+    ----------
+    window_length : int
+        Returns window length
+    universe : Zipline Filter
+        Universe of stocks filter
+    sector : Zipline Classifier
+        Sector classifier
+
+    Returns
+    -------
+    factor : Zipline Factor
+        Mean reversion 5 day sector neutral factor
+    """
+    return -Returns(window_length=window_length, mask=universe) \
+        .demean(groupby=sector) \
+        .rank(method='ordinal', ascending=True) \
+        .zscore()
 
 
-def mean_reversion_5day_sector_neutral(window_length, universe, sector):
-    return -Returns(window_length=window_length, mask=universe).demean(groupby=sector).rank().zscore()
+def mean_reversion_sector_neutral_smoothed(window_length, universe, sector):
+    """
+    Smoothed version of mean_reversion_5day_sector_neutral. window_lenghth is used in returns and smoothing computations
+    """
+    unsmoothed_factor = mean_reversion_sector_neutral(window_length, universe, sector)
+    return SimpleMovingAverage(inputs=[unsmoothed_factor], window_length=window_length) \
+        .rank() \
+        .zscore()
 
-
-def mean_reversion_5day_sector_neutral_smoothed(window_length, universe, sector):
-    unsmoothed_factor = mean_reversion_5day_sector_neutral(window_length, universe, sector)
-    return SimpleMovingAverage(inputs=[unsmoothed_factor], window_length=window_length).rank().zscore()
-
-
+# Overnight returns
 class CTO(Returns):
     """
     Computes the overnight return, per hypothesis from
