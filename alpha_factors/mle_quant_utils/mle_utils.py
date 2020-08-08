@@ -7,10 +7,24 @@ from sklearn.base import clone
 from sklearn.preprocessing import LabelEncoder
 from sklearn.utils import Bunch
 
+import graphviz
+from IPython.display import Image
+from sklearn.tree import export_graphviz
+
 from tqdm import tqdm
 import abc
 
-# Region CV
+
+# Region Prediction
+def get_pred_alpha(X_probas):
+    """
+    Rescale predicted probabilites into [-1+1]
+    :param X_probas: 2d-array considering predicted probabilities
+    :return: 1d array re-scaled to [-1+1]
+    """
+    prob_array = [-1, 1]
+    alpha_score = X_probas.dot(np.array(prob_array))
+    return alpha_score
 
 def predict_and_score(model,  X_train, y_train, X_valid, y_valid ):
     p_train = model.predict(X_train)
@@ -18,6 +32,8 @@ def predict_and_score(model,  X_train, y_train, X_valid, y_valid ):
     acc_train = accuracy_score(y_train.values, p_train)
     acc_valid = accuracy_score(y_valid.values, p_valid)
     return [p_train.mean(), acc_train, p_valid.mean(), acc_valid, model.oob_score_]
+
+# Region CV
 
 def rf_train_val_grid_search(estimator, param_grid, X_train, y_train, X_valid, y_valid):
     """
@@ -310,3 +326,18 @@ class NoOverlapVoter(NoOverlapVoterAbstract):
 
     def _non_overlapping_estimators(self, x, y, classifiers, n_skip_samples):
         return non_overlapping_estimators(x, y, classifiers, n_skip_samples)
+
+# Region Visualization
+
+def plot_tree_classifier(clf, feature_names=None):
+    dot_data = export_graphviz(
+        clf,
+        out_file=None,
+        feature_names=feature_names,
+        filled=True,
+        rounded=True,
+        special_characters=True,
+        rotate=True)
+
+    return Image(graphviz.Source(dot_data).pipe(format='png'))
+
