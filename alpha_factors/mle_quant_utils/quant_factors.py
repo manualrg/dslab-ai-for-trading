@@ -61,7 +61,8 @@ def factor_evaluation(factor_data, factor_names, frequency="daily"):
 
 # Region ml-alpha-eval
 
-def mlfactor_evaluation(data, samples, classifier, factors, pricing, quantiles=5, bins=None, periods=5, ann_factor = np.sqrt(252)):
+def mlfactor_evaluation(data, samples, model, factors, pricing, quantiles=5, bins=None, periods=5,
+                        ann_factor = np.sqrt(252), kind='clf'):
     """
     Compute sharpe ratio, and plot accumulated returns and FRA
     :param data: all_factors pandas DF. MultiIndex (Date, Symbol). Daily frequency
@@ -81,8 +82,19 @@ def mlfactor_evaluation(data, samples, classifier, factors, pricing, quantiles=5
     """
 
     # Calculate the Alpha Score
-    prob_array = [-1, 1]
-    alpha_score = classifier.predict_proba(samples).dot(np.array(prob_array))
+    if kind == 'clf':
+        prob_array = [-1, 1]
+        alpha_score = model.predict_proba(samples).dot(np.array(prob_array))
+    elif kind == 'reg':
+        alpha_score = model.predict(samples)
+        #alpha_score_raw = pd.Series(index=samples.index, data=model.predict(samples))
+        #alpha_score_rank = alpha_score_raw.groupby(level=0).apply(
+        #    lambda grp: pd.qcut(grp, q=99, labels=False, duplicates='drop'))
+        #mu = alpha_score_rank.groupby(level=0).mean()
+        #std = alpha_score_rank.groupby(level=0).std()
+        #alpha_score = alpha_score_rank.subtract(mu, level=0).div(std, level=0)
+    else:
+        print('Unknown kind: {}'.format(kind))
 
     # Add Alpha Score to rest of the factors
     alpha_score_label = 'ML_FACTOR'
