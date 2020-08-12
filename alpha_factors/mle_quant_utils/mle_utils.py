@@ -34,14 +34,22 @@ def get_pred_alpha(preds, kind='clf'):
 def predict_and_score(model,  X_train, y_train, X_valid, y_valid, kind='clf'):
     results_cols = ['train_pmean', 'train_score', 'valid_pmean', 'valid_score', 'oob_score']
 
-    p_train = model.predict(X_train)
-    p_valid = model.predict(X_valid)
+    p_train = pd.Series(index=X_train.index, data=model.predict(X_train))
+    p_valid = pd.Series(index=X_valid.index, data=model.predict(X_valid))
     if kind == 'clf':
-        score_train = accuracy_score(y_train.values, p_train)
-        score_valid = accuracy_score(y_valid.values, p_valid)
+        score_train = accuracy_score(y_train.values, p_train.values)
+        acc_p_train = (p_train == y_train).groupby(y_train).mean()
+        acc_p_train = acc_p_train.rename(index={True: 'train_acc_target>0', False: 'train_acc_target<0'})
+        score_valid = accuracy_score(y_valid.values, p_valid.values)
+        acc_p_valid = (p_valid == y_valid).groupby(y_valid).mean().T
+        acc_p_valid = acc_p_valid.rename(index={True: 'valid_acc_target>0', False: 'valid_acc_target<0'})
     elif kind == 'reg':
-        score_train = mean_squared_error(y_train.values, p_train)
-        score_valid = mean_squared_error(y_valid.values, p_valid)
+        score_train = mean_squared_error(y_train.values, p_train.values)
+        acc_p_train = ((p_train > 0) == (y_train > 0)).groupby(y_train > 0).mean()
+        acc_p_train = acc_p_train.rename(index={True: 'train_acc_target>0', False: 'train_acc_target<0'})
+        score_valid = mean_squared_error(y_valid.values, p_valid.values)
+        acc_p_valid = ((p_valid > 0) == (y_valid > 0)).groupby(y_valid > 0).mean()
+        acc_p_valid = acc_p_valid.rename(index={True: 'valid_acc_target>0', False: 'valid_acc_target<0'})
     else:
         print('Unknown kind: {}'.format(kind))
 
@@ -51,6 +59,7 @@ def predict_and_score(model,  X_train, y_train, X_valid, y_valid, kind='clf'):
     else:
         result = pd.Series(index=results_cols[:-1],
                            data=[p_train.mean(), score_train, p_valid.mean(), score_valid])
+    result = result.append(acc_p_train).append(acc_p_valid)
     return result
 
 # Region CV
@@ -67,7 +76,8 @@ def rf_train_val_grid_search(estimator, param_grid, X_train, y_train, X_valid, y
     :return: list of models and results pandas DF, joining hparams configurations and train/valid results
     """
     n_models = len(param_grid)
-    results_cols = ['train_pmean', 'train_score', 'valid_pmean', 'valid_score', 'oob_score']
+    results_cols = ['train_pmean', 'train_score', 'valid_pmean', 'valid_score', 'oob_score',
+                    'train_acc_target>0', 'train_acc_target<0', 'valid_acc_target>0', 'valid_acc_target<0']
     results = pd.DataFrame(index=range(0, n_models), columns=results_cols)
     models, hparams_df_lst = [], []
     for i, hparams in enumerate(tqdm(param_grid, desc='Training Models', unit='Model')):
@@ -283,7 +293,6 @@ def bagging_classifier(max_samples, max_features,parameters):
     return clf
 
 # Region VotingRF
-
 class NoOverlapVoterAbstract(VotingClassifier):
     @abc.abstractmethod
     def _calculate_oob_score(self, classifiers):
