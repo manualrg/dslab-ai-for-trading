@@ -36,20 +36,22 @@ def predict_and_score(model,  X_train, y_train, X_valid, y_valid, kind='clf'):
 
     p_train = pd.Series(index=X_train.index, data=model.predict(X_train))
     p_valid = pd.Series(index=X_valid.index, data=model.predict(X_valid))
+    acc_train_idx_dict = {True: 'train_acc_target>0', False: 'train_acc_target<0'}
+    acc_valid_idx_dict = {True: 'valid_acc_target>0', False: 'valid_acc_target<0'}
     if kind == 'clf':
         score_train = accuracy_score(y_train.values, p_train.values)
-        acc_p_train = (p_train == y_train).groupby(y_train).mean()
-        acc_p_train = acc_p_train.rename(index={True: 'train_acc_target>0', False: 'train_acc_target<0'})
+        acc_p_train = (p_train == y_train).groupby(y_train).mean().rename(index=acc_train_idx_dict)
         score_valid = accuracy_score(y_valid.values, p_valid.values)
-        acc_p_valid = (p_valid == y_valid).groupby(y_valid).mean().T
-        acc_p_valid = acc_p_valid.rename(index={True: 'valid_acc_target>0', False: 'valid_acc_target<0'})
+        acc_p_valid = (p_valid == y_valid).groupby(y_valid).mean().rename(index=acc_valid_idx_dict)
     elif kind == 'reg':
+        N_train = (y_train > 0).value_counts().rename(acc_train_idx_dict)
         score_train = mean_squared_error(y_train.values, p_train.values)
-        acc_p_train = ((p_train > 0) == (y_train > 0)).groupby(y_train > 0).mean()
-        acc_p_train = acc_p_train.rename(index={True: 'train_acc_target>0', False: 'train_acc_target<0'})
+        acc_p_train = ((p_train > 0) == (y_train > 0)).groupby(y_train > 0).mean().rename(index=acc_train_idx_dict)
+        acc_p_train['train_acc'] = (N_train*acc_p_train).sum()/N_train.sum()
+        N_valid = (y_valid > 0).value_counts().rename(acc_valid_idx_dict)
         score_valid = mean_squared_error(y_valid.values, p_valid.values)
-        acc_p_valid = ((p_valid > 0) == (y_valid > 0)).groupby(y_valid > 0).mean()
-        acc_p_valid = acc_p_valid.rename(index={True: 'valid_acc_target>0', False: 'valid_acc_target<0'})
+        acc_p_valid = ((p_valid > 0) == (y_valid > 0)).groupby(y_valid > 0).mean().rename(index=acc_valid_idx_dict)
+        acc_p_train['valid_acc'] = (N_valid * acc_p_valid).sum() / N_valid.sum()
     else:
         print('Unknown kind: {}'.format(kind))
 
@@ -78,6 +80,9 @@ def rf_train_val_grid_search(estimator, param_grid, X_train, y_train, X_valid, y
     n_models = len(param_grid)
     results_cols = ['train_pmean', 'train_score', 'valid_pmean', 'valid_score', 'oob_score',
                     'train_acc_target>0', 'train_acc_target<0', 'valid_acc_target>0', 'valid_acc_target<0']
+    if kind == 'reg':
+        results_cols = results_cols + ['train_acc', 'valid_acc']
+
     results = pd.DataFrame(index=range(0, n_models), columns=results_cols)
     models, hparams_df_lst = [], []
     for i, hparams in enumerate(tqdm(param_grid, desc='Training Models', unit='Model')):
