@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-from sklearn.metrics import accuracy_score
+from sklearn.metrics import accuracy_score, mean_squared_error
 from sklearn.ensemble import RandomForestClassifier, BaggingClassifier, VotingClassifier
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.base import clone
@@ -16,26 +16,57 @@ import abc
 
 
 # Region Prediction
-def get_pred_alpha(X_probas):
+def get_pred_alpha(preds, kind='clf'):
     """
     Rescale predicted probabilites into [-1+1]
     :param X_probas: 2d-array considering predicted probabilities
     :return: 1d array re-scaled to [-1+1]
     """
-    prob_array = [-1, 1]
-    alpha_score = X_probas.dot(np.array(prob_array))
+    if kind == 'clf':
+        prob_array = [-1, 1]
+        alpha_score = preds.dot(np.array(prob_array))
+    elif kind == 'reg':
+        alpha_score = preds
+    else:
+        print('Unknown kind: {}'.format(kind))
     return alpha_score
 
-def predict_and_score(model,  X_train, y_train, X_valid, y_valid ):
-    p_train = model.predict(X_train)
-    p_valid = model.predict(X_valid)
-    acc_train = accuracy_score(y_train.values, p_train)
-    acc_valid = accuracy_score(y_valid.values, p_valid)
-    return [p_train.mean(), acc_train, p_valid.mean(), acc_valid, model.oob_score_]
+def predict_and_score(model,  X_train, y_train, X_valid, y_valid, kind='clf'):
+    results_cols = ['train_pmean', 'train_score', 'valid_pmean', 'valid_score', 'oob_score']
+
+    p_train = pd.Series(index=X_train.index, data=model.predict(X_train))
+    p_valid = pd.Series(index=X_valid.index, data=model.predict(X_valid))
+    acc_train_idx_dict = {True: 'train_acc_target>0', False: 'train_acc_target<0'}
+    acc_valid_idx_dict = {True: 'valid_acc_target>0', False: 'valid_acc_target<0'}
+    if kind == 'clf':
+        score_train = accuracy_score(y_train.values, p_train.values)
+        acc_p_train = (p_train == y_train).groupby(y_train).mean().rename(index=acc_train_idx_dict)
+        score_valid = accuracy_score(y_valid.values, p_valid.values)
+        acc_p_valid = (p_valid == y_valid).groupby(y_valid).mean().rename(index=acc_valid_idx_dict)
+    elif kind == 'reg':
+        N_train = (y_train > 0).value_counts().rename(acc_train_idx_dict)
+        score_train = mean_squared_error(y_train.values, p_train.values)
+        acc_p_train = ((p_train > 0) == (y_train > 0)).groupby(y_train > 0).mean().rename(index=acc_train_idx_dict)
+        acc_p_train['train_acc'] = (N_train*acc_p_train).sum()/N_train.sum()
+        N_valid = (y_valid > 0).value_counts().rename(acc_valid_idx_dict)
+        score_valid = mean_squared_error(y_valid.values, p_valid.values)
+        acc_p_valid = ((p_valid > 0) == (y_valid > 0)).groupby(y_valid > 0).mean().rename(index=acc_valid_idx_dict)
+        acc_p_train['valid_acc'] = (N_valid * acc_p_valid).sum() / N_valid.sum()
+    else:
+        print('Unknown kind: {}'.format(kind))
+
+    if hasattr(model, "oob_score_"):
+        result = pd.Series(index=results_cols,
+                           data=[p_train.mean(), score_train, p_valid.mean(), score_valid, model.oob_score_])
+    else:
+        result = pd.Series(index=results_cols[:-1],
+                           data=[p_train.mean(), score_train, p_valid.mean(), score_valid])
+    result = result.append(acc_p_train).append(acc_p_valid)
+    return result
 
 # Region CV
 
-def rf_train_val_grid_search(estimator, param_grid, X_train, y_train, X_valid, y_valid):
+def rf_train_val_grid_search(estimator, param_grid, X_train, y_train, X_valid, y_valid, kind='clf'):
     """
     Computes GridSearch on a RandomForsetClassifier-like estimator, given:
     :param estimator: RandomForsetClassifier-like
@@ -47,18 +78,22 @@ def rf_train_val_grid_search(estimator, param_grid, X_train, y_train, X_valid, y
     :return: list of models and results pandas DF, joining hparams configurations and train/valid results
     """
     n_models = len(param_grid)
-    results_cols = ['train_pmean', 'train_score', 'valid_pmean', 'valid_score', 'oob_score']
+    results_cols = ['train_pmean', 'train_score', 'valid_pmean', 'valid_score', 'oob_score',
+                    'train_acc_target>0', 'train_acc_target<0', 'valid_acc_target>0', 'valid_acc_target<0']
+    if kind == 'reg':
+        results_cols = results_cols + ['train_acc', 'valid_acc']
+
     results = pd.DataFrame(index=range(0, n_models), columns=results_cols)
     models, hparams_df_lst = [], []
     for i, hparams in enumerate(tqdm(param_grid, desc='Training Models', unit='Model')):
         rf_clf = clone(estimator).set_params(**hparams)
         res = rf_clf.fit(X_train, y_train)
-        results.loc[i, :] = predict_and_score(res,  X_train, y_train, X_valid, y_valid)
+        results.loc[i, :] = predict_and_score(res,  X_train, y_train, X_valid, y_valid, kind=kind)
         hparams_df_lst.append(pd.DataFrame(index=[i], data=hparams))
         models.append(res)
     return models, results.join(pd.concat(hparams_df_lst, axis=0), rsuffix="_hp")
 
-def votrf_train_val_grid_search(param_grid, X_train, y_train, X_valid, y_valid, n_skip_samples=4):
+def votrf_train_val_grid_search(param_grid, X_train, y_train, X_valid, y_valid, n_skip_samples=4, kind='clf'):
     """
     Computes GridSearch on a VotingClassifier estimator based on RandomForestClassifier, given:
     :param param_grid: ParamGrid hyperparameter configurations
@@ -76,6 +111,30 @@ def votrf_train_val_grid_search(param_grid, X_train, y_train, X_valid, y_valid, 
     for i, hparams in enumerate(tqdm(param_grid, desc='Training Models', unit='Model')):
         vrf_clf = NoOverlapVoter(RandomForestClassifier(**hparams), n_skip_samples=n_skip_samples)
         res = vrf_clf.fit(X_train, y_train)
+        results.loc[i, :] = predict_and_score(res,  X_train, y_train, X_valid, y_valid, kind=kind)
+        hparams_df_lst.append(pd.DataFrame(index=[i], data=hparams))
+        models.append(res)
+    return models, results.join(pd.concat(hparams_df_lst, axis=0), rsuffix="_hp")
+
+def vot_train_val_grid_search(estimator, param_grid, X_train, y_train, X_valid, y_valid, n_skip_samples=4):
+    """
+    Computes GridSearch on a VotingClassifier estimator based on RandomForestClassifier, given:
+    :param param_grid: ParamGrid hyperparameter configurations
+    :param X_train: array-like train features
+    :param y_train: array-like train labels
+    :param X_valid: array-like valid features
+    :param y_valid: array-like valid labels
+    :param n_skip_samples: Each base estimator is computed on an independent sample from (X_train, y_train)
+    :return: list of models and results pandas DF, joining hparams configurations and train/valid results
+    """
+    n_models = len(param_grid)
+    results_cols = ['train_pmean', 'train_score', 'valid_pmean', 'valid_score', 'oob_score']
+    results = pd.DataFrame(index=range(0, n_models), columns=results_cols)
+    models, hparams_df_lst = [], []
+    for i, hparams in enumerate(tqdm(param_grid, desc='Training Models', unit='Model')):
+        base_clf = clone(estimator).set_params(**hparams)
+        vot_clf = NoOverlapVoter(base_clf, n_skip_samples=n_skip_samples)
+        res = vot_clf.fit(X_train, y_train)
         results.loc[i, :] = predict_and_score(res,  X_train, y_train, X_valid, y_valid)
         hparams_df_lst.append(pd.DataFrame(index=[i], data=hparams))
         models.append(res)
@@ -239,7 +298,6 @@ def bagging_classifier(max_samples, max_features,parameters):
     return clf
 
 # Region VotingRF
-
 class NoOverlapVoterAbstract(VotingClassifier):
     @abc.abstractmethod
     def _calculate_oob_score(self, classifiers):
@@ -264,7 +322,8 @@ class NoOverlapVoterAbstract(VotingClassifier):
         clone_clfs = [clone(clf) for clf in clfs]
         self.estimators_ = self._non_overlapping_estimators(X, y, clone_clfs, self.n_skip_samples)
         self.named_estimators_ = Bunch(**dict(zip(estimator_names, self.estimators_)))
-        self.oob_score_ = self._calculate_oob_score(self.estimators_)
+        if hasattr(self.estimators_[0], "oob_score_"):
+            self.oob_score_ = self._calculate_oob_score(self.estimators_)
 
         return self
 
