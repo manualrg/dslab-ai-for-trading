@@ -391,63 +391,31 @@ class NoOverlapVoterRegressorAbstract(VotingRegressor):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def _non_overlapping_regressors(self, x, y, regressors, hparams, n_skip_samples):
+    def _non_overlapping_regressors(self, x, y, regressors, n_skip_samples):
         raise NotImplementedError
 
-    def __init__(self, estimator, hparams, n_skip_samples=4):
+    def __init__(self, base_estimator, n_skip_samples=4):
         # List of estimators for all the subsets of data
-        estimators = [('reg' + str(i), estimator) for i in range(n_skip_samples + 1)]
+        estimators = [('reg' + str(i), base_estimator) for i in range(n_skip_samples + 1)]
 
         self.n_skip_samples = n_skip_samples
+        self.base_estimator = base_estimator
         super().__init__(estimators)
 
     def fit(self, X, y, sample_weight=None):
         estimator_names, regs = zip(*self.estimators)
 
         clone_regs = [clone(reg) for reg in regs]
-        self.estimators_ = self._non_overlapping_estimators(X, y, clone_regs, self.hparams, self.n_skip_samples)
+        self.estimators_ = self._non_overlapping_regressors(X, y, clone_regs, self.n_skip_samples)
         self.named_estimators_ = Bunch(**dict(zip(estimator_names, self.estimators_)))
         if hasattr(self.estimators_[0], "oob_score_"):
             self.oob_score_ = self._calculate_oob_score(self.estimators_)
 
         return self
 
-
-def non_overlapping_regressors(x, y, regressors, hparams, n_skip_samples):
-    """
-    Fit the classifiers to non overlapping data.
-
-    Parameters
-    ----------
-    x : DataFrame
-        The input samples
-    y : Pandas Series
-        The target values
-    classifiers : list of Scikit-Learn Classifiers
-        The classifiers used to fit on the non overlapping data
-    n_skip_samples : int
-        The number of samples to skip
-
-    Returns
-    -------
-    fit_classifiers : list of Scikit-Learn Classifiers
-        The classifiers fit to the the non overlapping data
-    """
-
-    # Generate N non-overlapping samples and fit a classifier for each
-    n_regs = len(regressors)
-    fit_regresors = []
-    for idx, offset in enumerate(range(0, n_regs)):
-        x_smpl, y_smpl = non_overlapping_samples(x, y, n_skip_samples, offset)
-        reg = regressors[idx].set_params(hparams)
-        fit_regresors.append(reg.fit(x_smpl, y_smpl))
-
-    return fit_regresors
-
-
 class NoOverlapVoterRegressor(NoOverlapVoterRegressorAbstract):
     def _calculate_oob_score(self, regressors):
         return calculate_oob_score(regressors)
 
-    def _non_overlapping_regressors(self, x, y, regressors, hparams, n_skip_samples):
-        return non_overlapping_regressors(x, y, regressors, hparams, n_skip_samples)
+    def _non_overlapping_regressors(self, x, y, regressors, n_skip_samples):
+        return non_overlapping_estimators(x, y, regressors, n_skip_samples)
