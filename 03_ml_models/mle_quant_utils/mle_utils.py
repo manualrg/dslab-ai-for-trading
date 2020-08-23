@@ -15,20 +15,37 @@ import abc
 
 
 # Region Prediction
-def get_pred_alpha(preds, kind='clf'):
+def get_pred_alpha(preds, kind='clf', n_bins = 51):
     """
-    Rescale predicted probabilites into [-1+1]
+    Rescale predicted probabilites into [-1, +1]
     :param X_probas: 2d-array considering predicted probabilities
-    :return: 1d array re-scaled to [-1+1]
+    :return: 1d array re-scaled to [-1, +1]
     """
+    assert isinstance(preds, pd.Series), "preds should be a pandas Series"
+    assert isinstance(preds.index, pd.MultiIndex), "preds should have MultiIndex (date, asset)"
+    assert isinstance(preds.index.get_level_values(0), pd.DatetimeIndex), "preds MultiIndex level 0 should be a DateTimeIndex"
+
     if kind == 'clf':
         prob_array = [-1, 1]
-        alpha_score = preds.dot(np.array(prob_array))
+        alpha_score_raw = preds.dot(np.array(prob_array))
     elif kind == 'reg':
-        alpha_score = preds
+        alpha_score_raw = preds
     else:
         print('Unknown kind: {}'.format(kind))
-    return alpha_score
+
+    alpha_score_ranked = alpha_score_raw.groupby(level=0).transform(
+        lambda grp: pd.cut(
+            x=grp,
+            bins=n_bins,
+            labels=False,
+            include_lowest=True,
+            duplicates='drop'
+        )
+    )
+    mu = alpha_score_ranked.groupby(level=0).transform(lambda grp: grp.mean())
+    sigma = alpha_score_ranked.groupby(level=0).transform(lambda grp: grp.std())
+    alpha_score_ranked_zscored = (alpha_score_ranked - mu) / sigma
+    return alpha_score_ranked_zscored
 
 def predict_and_score(model,  X_train, y_train, X_valid, y_valid, kind='clf'):
     results_cols = ['train_pmean', 'train_score', 'valid_pmean', 'valid_score', 'oob_score']
@@ -62,6 +79,56 @@ def predict_and_score(model,  X_train, y_train, X_valid, y_valid, kind='clf'):
                            data=[p_train.mean(), score_train, p_valid.mean(), score_valid])
     result = result.append(acc_p_train).append(acc_p_valid)
     return result
+
+
+def direction_accuracy_func(y_true, y_pred, **kwargs):
+    kind = kwargs.get('kind', 'global')
+    w_fp = kwargs.get('w_fp', 2)
+    w_fn = kwargs.get('w_fn', 2)
+    nobs = len(y_true)
+    y_true_pos = (y_true > 0).astype(int)
+    y_pred_pos = (y_pred > 0).astype(int)
+    xtab = pd.crosstab(index=y_true_pos, columns=y_pred_pos)
+    try:
+        tp = xtab.loc[1, 1]
+    except:
+        tp = 0
+    try:
+        tn = xtab.loc[0, 0]
+    except:
+        tn = 0
+    try:
+        fp = xtab.loc[0, 1]
+    except:
+        fp = 0
+    try:
+        fn = xtab.loc[1, 0]
+    except:
+        fn = 0
+    if kind == 'global':
+        try:
+            acc = (tp + tn) / nobs
+        except:
+            acc = 0
+    elif kind == 'upwards':
+        try:
+            acc = tp / (tp + fn)
+        except:
+            acc = 0
+    elif kind == 'downwards':
+        try:
+            acc = tn / (tn + fp)
+        except:
+            acc = 0
+    elif kind == 'weighted':
+        try:
+            acc = (tp + tn) / (tp + tn + fp * w_fp + fn * w_fn)
+        except:
+            acc = 0
+    else:
+        raise ValueError("kind must be: global, upwards, downwards or weighted")
+
+    return acc
 
 # Region CV
 
