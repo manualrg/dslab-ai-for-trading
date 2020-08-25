@@ -65,7 +65,6 @@ def predict_and_score(model,  X_train, y_train, X_valid, y_valid, kind='clf'):
     return result
 
 # Region CV
-
 def rf_train_val_grid_search(estimator, param_grid, X_train, y_train, X_valid, y_valid, kind='clf'):
     """
     Computes GridSearch on a RandomForsetClassifier-like estimator, given:
