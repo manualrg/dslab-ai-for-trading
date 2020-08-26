@@ -71,8 +71,8 @@ def mlfactor_evaluation(data, samples, model, factors, pricing, quantiles=5, bin
     :param factors: Set of alpha factors used as features
     :param pricing: prices pandas DF
     :param periods: (int) periods to compute forward returns
-    :param title: plot supttile
-    :param figsize: figsize tuple
+    :param ann_factor: annualizing factor to compute Sharpe Ratio
+    :param kind: clf or reg
     :return:
         alpha_score: ml alpha factor
         factor_returns
@@ -87,12 +87,6 @@ def mlfactor_evaluation(data, samples, model, factors, pricing, quantiles=5, bin
         alpha_score = model.predict_proba(samples).dot(np.array(prob_array))
     elif kind == 'reg':
         alpha_score = model.predict(samples)
-        #alpha_score_raw = pd.Series(index=samples.index, data=model.predict(samples))
-        #alpha_score_rank = alpha_score_raw.groupby(level=0).apply(
-        #    lambda grp: pd.qcut(grp, q=99, labels=False, duplicates='drop'))
-        #mu = alpha_score_rank.groupby(level=0).mean()
-        #std = alpha_score_rank.groupby(level=0).std()
-        #alpha_score = alpha_score_rank.subtract(mu, level=0).div(std, level=0)
     else:
         print('Unknown kind: {}'.format(kind))
 
@@ -118,6 +112,12 @@ def mlfactor_evaluation(data, samples, model, factors, pricing, quantiles=5, bin
     return alpha_score, factor_returns, sharpe_ratio, factor_cum_rets, factor_fra
 
 def get_factor_returns(factor_data):
+    """
+    Compute factor (weighted) returns for a given alpha-factor
+    :param factor_data: dictionary of factor DataFrames,
+    created with alphalens.utils.get_clean_factor_and_forward_returns
+    :return: pandas DF with factor returns for each alpha factor by column and datetime indexed
+    """
     ls_factor_returns = pd.DataFrame()
 
     for factor, factor_data in factor_data.items():
@@ -126,6 +126,12 @@ def get_factor_returns(factor_data):
     return ls_factor_returns
 
 def get_factor_rank_autocorrelation(factor_data):
+    """
+    Compute FRA, computing rank correlation among alpha vectors on lagged days
+    :param factor_data: dictionary of factor DataFrames,
+    created with alphalens.utils.get_clean_factor_and_forward_returns
+    :return:pandas DF with FRA for each alpha factor by column and datetime indexed
+    """
     ls_FRA = pd.DataFrame()
 
     unixt_factor_data = {
@@ -143,6 +149,15 @@ def get_factor_rank_autocorrelation(factor_data):
 
 
 def build_factor_data(factor_data, pricing, quantiles, bins, periods):
+    """
+    Wraps alphalens.utils.get_clean_factor_and_forward_returns to easily align factor data and forward returns
+    :param factor_data: pandas DataFrame containing factor data
+    :param pricing: prices dataframe, used to compute forward returns
+    :param quantiles: number of buckets
+    :param bins: number of bins
+    :param period: period to compute forward returns
+    :return: dictionary with factor returns DataFrame for each alpha factor
+    """
     # https://www.quantopian.com/posts/how-can-i-use-alphalens-with-boolean-factor-true-and-false
     return {factor_name: al.utils.get_clean_factor_and_forward_returns(factor=data,
                                                                        prices=pricing,
@@ -150,6 +165,7 @@ def build_factor_data(factor_data, pricing, quantiles, bins, periods):
                                                                        bins=bins,
                                                                        periods=[periods])
         for factor_name, data in factor_data.iteritems()}
+
 
 # Region alpha_factors
 
@@ -261,6 +277,7 @@ def overnight_sentiment_smoothed(cto_window_length, trail_overnight_returns_wind
     unsmoothed_factor = overnight_sentiment(cto_window_length, trail_overnight_returns_window_length, universe)
     return SimpleMovingAverage(inputs=[unsmoothed_factor],
                                window_length=trail_overnight_returns_window_length).rank().zscore()
+
 
 # Region quant-features
 

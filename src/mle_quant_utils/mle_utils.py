@@ -185,23 +185,22 @@ def train_valid_test_split(all_x: pd.DataFrame, all_y: pd.DataFrame, train_size:
 
     # Obtain an array of each split idx
     # Assume a MultiIndex pandas, level=0 is date
-    n_rows = len(all_y)
-    splits_idx = np.array([train_size, valid_size, test_size]) * n_rows
-    splits_idx = np.array(splits_idx).cumsum().astype(np.int32)
-    # extract date index and slice it according to previous indexes
-    idx_dates = all_x.index.get_level_values(0)
-    idx_train = idx_dates[:splits_idx[0]]
-    idx_valid = idx_dates[splits_idx[0]:splits_idx[1]]
-    idx_test = idx_dates[splits_idx[1]:]
+    dates_idx = all_x.index.get_level_values(0).unique()
+    train_idx = int(train_size * len(dates_idx))
+    valid_idx = train_idx + int(valid_size * len(dates_idx))
+
     # Split Multi index data
-    x_train = all_x.loc[idx_train[0]: idx_train[-1]]
-    y_train = all_y.loc[idx_train[0]: idx_train[-1]]
+    train_dt_idx = dates_idx[:train_idx].values
+    x_train = all_x.loc[train_dt_idx]
+    y_train = all_y.loc[train_dt_idx]
 
-    x_valid = all_x.loc[idx_valid[0]: idx_valid[-1]]
-    y_valid = all_y.loc[idx_valid[0]: idx_valid[-1]]
+    valid_dt_idx = dates_idx[train_idx: valid_idx].values
+    x_valid = all_x.loc[valid_dt_idx]
+    y_valid = all_y.loc[valid_dt_idx]
 
-    x_test = all_x.loc[idx_test[0]: idx_test[-1]]
-    y_test = all_y.loc[idx_test[0]: idx_test[-1]]
+    test_dt_idx = dates_idx[valid_idx:].values
+    x_test = all_x.loc[test_dt_idx]
+    y_test = all_y.loc[test_dt_idx]
 
     return x_train, x_valid, x_test, y_train, y_valid, y_test
 

@@ -60,11 +60,11 @@ def load_financial_data(path: str):
 
 
 if __name__ == '__main__':
-    from src.load_data import read_utils
+    from src.load_data import io_utils
     import os
 
-    mkt_data_path = os.path.join(read_utils.raw_path, "market_data", "")
-    simfin_path = os.path.join(read_utils.raw_path, "sinfim_data", "")
+    mkt_data_path = os.path.join(io_utils.raw_path, "market_data", "")
+    simfin_path = os.path.join(io_utils.raw_path, "sinfim_data", "")
 
     us_tbills = load_tbills(mkt_data_path, "quandl_ustbills.csv", "2010-01-01", "2020-05-05")
     sp500 = load_sp500(mkt_data_path, "fred_sp500.csv", "2010-01-01", "2020-05-05")
