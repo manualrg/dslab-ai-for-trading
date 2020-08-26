@@ -28,13 +28,14 @@ output:
         model: model.pkl
         model_metadata: model_metadata.pkl
     risk_factors:
-        folder: risk_factors
+        folder: risk_models
         model: risk_model.pkl
         model_metadata: risk_model_metadata.pkl
-    raw:
-        folder: raw
-        pricing: pricing.csv
-        volume: volume.csv
+    interim:
+        pricing: pricing_5yrs.csv
+        volume: volume_5yrs.csv
+        all_factors: all_factors_3yrs.csv
+        all_forwreturns: forw_returns_3yrs.csv
 
 models:
     universe:

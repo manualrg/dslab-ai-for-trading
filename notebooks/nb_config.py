@@ -13,7 +13,7 @@ if __name__ == '__main__' and __package__ is None:
     pd.set_option("display.precision", 6)
     pd.set_option('max_info_columns', 10)
 
-    sns.set_context("talk")
+    #sns.set_context("talk")
     plt.style.use('ggplot')
     plt.rcParams['figure.figsize'] = (16, 8)
 
