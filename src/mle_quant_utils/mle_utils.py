@@ -1,13 +1,12 @@
 import numpy as np
 import pandas as pd
 from sklearn.metrics import accuracy_score, mean_squared_error
-from sklearn.ensemble import RandomForestClassifier, BaggingClassifier, VotingClassifier
+from sklearn.ensemble import RandomForestClassifier, BaggingClassifier, VotingClassifier, VotingRegressor
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.base import clone
 from sklearn.preprocessing import LabelEncoder
 from sklearn.utils import Bunch
 
-import graphviz
 from IPython.display import Image
 from sklearn.tree import export_graphviz
 
@@ -295,7 +294,8 @@ def bagging_classifier(max_samples, max_features,parameters):
     )
     return clf
 
-# Region VotingRF
+# Region Voting Ensembles
+
 class NoOverlapVoterAbstract(VotingClassifier):
     @abc.abstractmethod
     def _calculate_oob_score(self, classifiers):
@@ -384,19 +384,40 @@ class NoOverlapVoter(NoOverlapVoterAbstract):
     def _non_overlapping_estimators(self, x, y, classifiers, n_skip_samples):
         return non_overlapping_estimators(x, y, classifiers, n_skip_samples)
 
-# Region Visualization
+class NoOverlapVoterRegressorAbstract(VotingRegressor):
+    @abc.abstractmethod
+    def _calculate_oob_score(self, regressors):
+        raise NotImplementedError
 
-def plot_tree_classifier(clf, feature_names=None):
-    dot_data = export_graphviz(
-        clf,
-        out_file=None,
-        feature_names=feature_names,
-        filled=True,
-        rounded=True,
-        special_characters=True,
-        rotate=True)
+    @abc.abstractmethod
+    def _non_overlapping_regressors(self, x, y, regressors, n_skip_samples):
+        raise NotImplementedError
 
-    return Image(graphviz.Source(dot_data).pipe(format='png'))
+    def __init__(self, base_estimator, n_skip_samples=4):
+        # List of estimators for all the subsets of data
+        estimators = [('reg' + str(i), base_estimator) for i in range(n_skip_samples + 1)]
+
+        self.n_skip_samples = n_skip_samples
+        self.base_estimator = base_estimator
+        super().__init__(estimators)
+
+    def fit(self, X, y, sample_weight=None):
+        estimator_names, regs = zip(*self.estimators)
+
+        clone_regs = [clone(reg) for reg in regs]
+        self.estimators_ = self._non_overlapping_regressors(X, y, clone_regs, self.n_skip_samples)
+        self.named_estimators_ = Bunch(**dict(zip(estimator_names, self.estimators_)))
+        if hasattr(self.estimators_[0], "oob_score_"):
+            self.oob_score_ = self._calculate_oob_score(self.estimators_)
+
+        return self
+
+class NoOverlapVoterRegressor(NoOverlapVoterRegressorAbstract):
+    def _calculate_oob_score(self, regressors):
+        return calculate_oob_score(regressors)
+
+    def _non_overlapping_regressors(self, x, y, regressors, n_skip_samples):
+        return non_overlapping_estimators(x, y, regressors, n_skip_samples)
 
 # Region Assessment
 
