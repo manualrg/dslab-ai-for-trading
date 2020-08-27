@@ -21,12 +21,12 @@ quantopian:
 output:
     main: output
     alpha_factors_ml:
-        folder: alpha_factors_ml
+        folder: alpha_models
         features: features.csv
         targets: targets.csv
-        preds: preds.csv
-        model: model.pkl
-        model_metadata: model_metadata.pkl
+        preds: ml_alpha_preds.csv
+        model: alpha_model.pkl
+        model_metadata: alpha_model_metadata.pkl
     risk_factors:
         folder: risk_models
         model: risk_model.pkl
