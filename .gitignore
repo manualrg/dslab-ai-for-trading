@@ -1,5 +1,6 @@
 # Folders
 data/
+old/
 
 # Python
 # Byte-compiled / optimized / DLL files
@@ -240,3 +241,4 @@ fabric.properties
 
 # End of https://www.gitignore.io/api/pycharm,jupyternotebooks
 .idea/
+
