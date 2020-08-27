@@ -398,3 +398,53 @@ def plot_tree_classifier(clf, feature_names=None):
 
     return Image(graphviz.Source(dot_data).pipe(format='png'))
 
+# Region Assessment
+
+def direction_accuracy_func(y_true, y_pred, **kwargs):
+    kind = kwargs.get('kind', 'global')
+    w_fp = kwargs.get('w_fp', 2)
+    w_fn = kwargs.get('w_fn', 2)
+    nobs = len(y_true)
+    y_true_pos = (y_true > 0).astype(int)
+    y_pred_pos = (y_pred > 0).astype(int)
+    xtab = pd.crosstab(index=y_true_pos, columns=y_pred_pos)
+    try:
+        tp = xtab.loc[1, 1]
+    except:
+        tp = 0
+    try:
+        tn = xtab.loc[0, 0]
+    except:
+        tn = 0
+    try:
+        fp = xtab.loc[0, 1]
+    except:
+        fp = 0
+    try:
+        fn = xtab.loc[1, 0]
+    except:
+        fn = 0
+    if kind == 'global':
+        try:
+            acc = (tp + tn) / nobs
+        except:
+            acc = 0
+    elif kind == 'upwards':
+        try:
+            acc = tp / (tp + fn)
+        except:
+            acc = 0
+    elif kind == 'downwards':
+        try:
+            acc = tn / (tn + fp)
+        except:
+            acc = 0
+    elif kind == 'weighted':
+        try:
+            acc = (tp + tn) / (tp + tn + fp * w_fp + fn * w_fn)
+        except:
+            acc = 0
+    else:
+        raise ValueError("kind must be: global, upwards, downwards or weighted")
+
+    return acc
