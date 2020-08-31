@@ -1,5 +1,6 @@
 # Folders
 data/
+old/
 
 # Python
 # Byte-compiled / optimized / DLL files
@@ -239,3 +240,5 @@ fabric.properties
 .idea/**/markdown-navigator/
 
 # End of https://www.gitignore.io/api/pycharm,jupyternotebooks
+.idea/
+
