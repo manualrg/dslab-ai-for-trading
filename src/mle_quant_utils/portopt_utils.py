@@ -92,7 +92,7 @@ def run_backtesting(opt_engine, alpha_factor, risk_model, daily_returns, daily_a
     port = {}
     w_prev = pd.Series(index=bkt_dt_set[0:1], data=[0.0])
     pnl_columns = ['returns_date', 'daily_pnl', 'daily_transaction_cost']
-    pnl = pd.DataFrame(index=bkt_dt_subset_loop, columns=pnl_columns)
+    pnl = pd.DataFrame(index=bkt_dt_subset_loop, columns=pnl_columns, dtype=float)
 
     for bkt_dt in tqdm(bkt_dt_subset_loop, desc='Opt portfolio', unit='portfolio'):
         bkt_str_dt = dt.datetime.strftime(bkt_dt, STR_DATE_FMT)
@@ -118,6 +118,7 @@ def run_backtesting(opt_engine, alpha_factor, risk_model, daily_returns, daily_a
         port_pnl = partial_dot_product(v=w_opt, w=daily_rets)
         pnl.loc[bkt_dt, pnl_columns] = [realization_dt, port_pnl, trans_cost]
 
+    pnl['returns_date'] = pd.to_datetime(pnl['returns_date'])
     pnl['daily_total'] = pnl['daily_pnl'] - pnl['daily_transaction_cost']
     pnl['total'] = pnl['daily_total'].cumsum()
 
