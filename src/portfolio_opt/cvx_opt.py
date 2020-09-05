@@ -66,7 +66,7 @@ class AbstractOptimalHoldings(ABC):
 
         optimal_weights = np.asarray(weights.value).flatten()
 
-        return pd.DataFrame(data=optimal_weights, index=alpha_vector.index)
+        return pd.Series(data=optimal_weights, index=alpha_vector.index)
 
 
 class OptimalHoldings(AbstractOptimalHoldings):
@@ -78,7 +78,7 @@ class OptimalHoldings(AbstractOptimalHoldings):
         ----------
         weights : CVXPY Variable
             Portfolio weights
-        alpha_vector : DataFrame
+        alpha_vector : Single column DataFrame or Series
             Alpha vector
 
         Returns
@@ -86,7 +86,10 @@ class OptimalHoldings(AbstractOptimalHoldings):
         objective : CVXPY Objective
             Objective function
         """
-        assert (len(alpha_vector.columns) == 1)
+        if isinstance(alpha_vector, pd.DataFrame):
+            assert (len(alpha_vector.columns) == 1), "alpha_vector should have only 1 column"
+        else:
+            assert isinstance(alpha_vector, pd.Series)
 
         alpha_term = alpha_vector.values.flatten() @ weights
 
@@ -140,7 +143,7 @@ class OptimalHoldingsRegualization(OptimalHoldings):
         ----------
         weights : CVXPY Variable
             Portfolio weights
-        alpha_vector : DataFrame
+        alpha_vector : Single column DataFrame or Series
             Alpha vector
 
         Returns
@@ -148,7 +151,11 @@ class OptimalHoldingsRegualization(OptimalHoldings):
         objective : CVXPY Objective
             Objective function
         """
-        assert(len(alpha_vector.columns) == 1)
+        if isinstance(alpha_vector, pd.DataFrame):
+            assert(len(alpha_vector.columns) == 1), "alpha_vector should have only 1 column"
+        else:
+            assert isinstance(alpha_vector, pd.Series)
+
         alpha_term = alpha_vector.values.flatten() @ weights
         reg_term = self.lambda_reg * cvx.norm(weights, 2)
         return cvx.Minimize(- alpha_term + reg_term )

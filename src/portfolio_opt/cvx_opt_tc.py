@@ -56,6 +56,8 @@ class AbstractOptimalHoldings(ABC):
         return cvx.quad_form(f, X) + cvx.quad_form(weights, S)
 
     def _combi_series(self, x, y, fill_value=0.0):
+        assert isinstance(x, pd.Series), 'x must be a pandas Series'
+        assert isinstance(y, pd.Series), 'y must be a pandas Series'
         choose_left = lambda x, y: x
         w = x.combine(y, func=choose_left, fill_value=fill_value)
         w = w[y.index]
@@ -106,7 +108,7 @@ class OptimalHoldings(AbstractOptimalHoldings):
         ----------
         weights : CVXPY Variable
             Portfolio weights
-        alpha_vector : DataFrame
+        alpha_vector : Single column DataFrame or Series
             Alpha vector
 
         Returns
@@ -114,7 +116,10 @@ class OptimalHoldings(AbstractOptimalHoldings):
         objective : CVXPY Objective
             Objective function
         """
-        assert isinstance(alpha_vector, pd.Series), 'alpha vector must be a pandas Series'
+        if isinstance(alpha_vector, pd.DataFrame):
+            assert (len(alpha_vector.columns) == 1), "alpha_vector should have only 1 column"
+        else:
+            assert isinstance(alpha_vector, pd.Series)
 
         alpha_term = alpha_vector.values.flatten() @ weights
         trans_cost_term = self._compute_transaction_cost(weights, w_prev, alpha_vector, tc_lambda)
@@ -170,7 +175,7 @@ class OptimalHoldingsRegualization(OptimalHoldings):
         ----------
         weights : CVXPY Variable
             Portfolio weights
-        alpha_vector : DataFrame
+        alpha_vector : Single column DataFrame or Series
             Alpha vector
 
         Returns
@@ -178,7 +183,10 @@ class OptimalHoldingsRegualization(OptimalHoldings):
         objective : CVXPY Objective
             Objective function
         """
-        assert isinstance(alpha_vector, pd.Series), 'alpha vector must be a pandas Series'
+        if isinstance(alpha_vector, pd.DataFrame):
+            assert (len(alpha_vector.columns) == 1), "alpha_vector should have only 1 column"
+        else:
+            assert isinstance(alpha_vector, pd.Series)
 
         alpha_term = alpha_vector.values.flatten() @ weights
         reg_term = self.lambda_reg * cvx.norm(weights, 2)
