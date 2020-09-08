@@ -19,6 +19,20 @@ def get_pred_alpha(preds, kind='clf'):
         print('Unknown kind: {}'.format(kind))
     return alpha_score
 
+def get_factor_alpha(preds_alpha, bins=9):
+    assert isinstance(preds_alpha, pd.Series), "preds_alpha must be a pandas Series"
+    assert isinstance(preds_alpha.index, pd.MultiIndex), "preds_alpha Series index must be MultiIndex"
+    assert isinstance(preds_alpha.index.get_level_values(0), pd.DatetimeIndex),\
+        "preds_alpha level=0 index must be DatetimeIndex"
+
+    ranked = preds_alpha.groupby(level=0).transform(
+        lambda grp: pd.cut(grp, bins=bins, labels=range(0, bins))
+    )
+    mu = ranked.groupby(level=0).transform(np.mean)
+    sigma = ranked.groupby(level=0).transform(np.mean)
+    ml_alpha_test_zscored = (ranked - mu) / sigma
+    return ml_alpha_test_zscored
+
 def predict_and_score(model,  X_train, y_train, X_valid, y_valid, kind='clf'):
     results_cols = ['train_pmean', 'train_score', 'valid_pmean', 'valid_score', 'oob_score']
 
