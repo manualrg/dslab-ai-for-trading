@@ -36,6 +36,7 @@ output:
         volume: volume_5yrs.csv
         all_factors: all_factors_3yrs.csv
         all_forwreturns: forw_returns_3yrs.csv
+        sector_factors: sector_cat_factor_3yrs.csv
 
 models:
     universe:
