@@ -19,6 +19,31 @@ def get_pred_alpha(preds, kind='clf'):
         print('Unknown kind: {}'.format(kind))
     return alpha_score
 
+
+def neutralize_sector(factor_data, sector_data):
+    """
+    Neutralize by removing sector mean a factor
+    :param factor_data: Factor returns
+    :param sector_data: Sector encoding
+    :return: factor returns sector de-meaned
+    """
+    for input_data in [factor_data, sector_data]:
+        assert isinstance(input_data, pd.DataFrame), f"{input_data}  must be a pandas DataFrame"
+        assert isinstance(input_data.index, pd.MultiIndex), f"{input_data} DataFrame index must be MultiIndex"
+        assert isinstance(input_data.index.get_level_values(0), pd.DatetimeIndex),\
+            f"{input_data} level=0 index must be DatetimeIndex"
+
+    ml_alpha_sector = factor_data.join(sector_data, how='left')
+
+    ml_alpha_sector_means = ml_alpha_sector.reset_index().set_index(['date', 'sector_code']).groupby(level=[0, 1])[
+        ['p_test_champ']].transform(np.mean)
+    ml_alpha_sector_means['asset'] = ml_alpha_sector.index.get_level_values(1)
+    ml_alpha_sector_means = ml_alpha_sector_means.reset_index().set_index(['date', 'asset'])
+
+    ml_alpha_neu = factor_data - ml_alpha_sector_means[['p_test_champ']]
+
+    return ml_alpha_neu
+
 def get_factor_alpha(preds_alpha, bins=9):
     assert isinstance(preds_alpha, pd.Series), "preds_alpha must be a pandas Series"
     assert isinstance(preds_alpha.index, pd.MultiIndex), "preds_alpha Series index must be MultiIndex"
@@ -29,7 +54,7 @@ def get_factor_alpha(preds_alpha, bins=9):
         lambda grp: pd.cut(grp, bins=bins, labels=range(0, bins))
     )
     mu = ranked.groupby(level=0).transform(np.mean)
-    sigma = ranked.groupby(level=0).transform(np.mean)
+    sigma = ranked.groupby(level=0).transform(np.std)
     ml_alpha_test_zscored = (ranked - mu) / sigma
     return ml_alpha_test_zscored
 
