@@ -31,6 +31,11 @@ output:
         folder: risk_models
         model: risk_model.pkl
         model_metadata: risk_model_metadata.pkl
+    opt_portfolio:
+        folder: opt_port
+        pnl_results: backtesting_pnl.csv
+        model: bkt_port_weights.pkl
+        model_metadata: bkt_port_metadata.pkl
     interim:
         pricing: pricing_5yrs.csv
         volume: volume_5yrs.csv
@@ -57,5 +62,13 @@ models:
 backtesting:
     transcost_adv_win: 30
     transcost_adv_impute: 1e4
-    risk_aversion: 1e-6
-    min_mkt_cap: 1e8
+    n_days_delay: 2
+    opt_port:
+        risk_aversion: 1e-6
+        min_mkt_cap: 1e8
+        lambda_reg: 0.5
+        risk_cap: 0.05
+        factor_max: 10.0
+        factor_min: -10.0
+        weights_max: 0.55
+        weights_min: -0.55
