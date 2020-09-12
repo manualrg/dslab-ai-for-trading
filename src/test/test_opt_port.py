@@ -70,7 +70,7 @@ def test_w_prev_and_current_conformance(get_returns_data, get_adv_vector, get_al
     tc = opt_engine_tc.est_trans_cost(w_prev, w_opt, adv_vector)
 
     assert len(w_opt) == n_assets, f"w_opt:{w_opt}, n_assets: {n_assets}"
-    assert tc > 0., f"transactions cost: {tc}"
+    assert tc <= 0., f"transactions cost: {tc}"
 
 
 

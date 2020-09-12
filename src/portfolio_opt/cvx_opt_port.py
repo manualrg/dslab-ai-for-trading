@@ -139,4 +139,4 @@ class OptimalHoldingsRegualization():
         # Estimate transaction costs
         trans_cost_term = w_delta @ tc_lambda
 
-        return trans_cost_term
+        return - trans_cost_term

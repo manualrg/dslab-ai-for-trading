@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import datetime as dt
+from scipy.stats import norm, t, gaussian_kde
 
 from tqdm import tqdm
 
@@ -19,11 +20,68 @@ def partial_dot_product(v, w):
 def sharpe_ratio(returns, ann_period):
     """
     Compute (annualized) sharpe ratio (risk adjusted returns) on a series of returns
+    VaR: statistic measuring maximum portfolio loss at a particular confidence level
     :param returns: pandas Series with pct returns
     :param ann_period: input to annualization factor, 12 if monthly, 252 if daily, so on
     :return: sharpe ratio (float)
     """
     return np.sqrt(ann_period) * returns.mean() / returns.std()
+
+def compute_empirical_var(losses, ci):
+    """
+    Compute empirical VaR (Value at Risk) at a given confidence level
+    :param losses:
+    :param ci:
+    :return:
+    """
+    return np.quantile(losses, ci)
+
+
+def compute_theoretical_var(losses, ci, distribution='normal'):
+    """
+    Compute theoretical VaR (Value at Risk) at a given confidence level
+    :param losses:
+    :param ci:
+    :return:
+    """
+    allowed_distributions = ['normal', 'student', 'gaussian_kde']
+    assert distribution in allowed_distributions, f'distribution should be in : {allowed_distributions}'
+
+    if distribution == allowed_distributions[0]:
+        pm, ps = losses.mean(), losses.std()
+        res = norm.ppf(ci, loc=pm, scale=ps)
+    if distribution == allowed_distributions[1]:
+        fitted = t.fit(losses)
+        res = t.ppf(ci, *fitted)
+    if distribution == allowed_distributions[2]:
+        fitted = gaussian_kde(losses)
+        sample = fitted.resample(100000)
+        res = np.quantile(sample, ci)
+
+    return res
+
+
+def compute_cvar(losses, ci, distribution='normal'):
+    """
+    CVaR: measures expected loss given a minimum loss equal to the (theoretical) VaR
+    :param losses:
+    :param ci:
+    :return:
+    """
+    allowed_distributions = ['normal', 'student']
+    assert distribution in allowed_distributions, f'distribution should be in : {allowed_distributions}'
+
+    if distribution == allowed_distributions[0]:
+        pm, ps = losses.mean(), losses.std()
+        var = norm.ppf(ci, loc=pm, scale=ps)
+        tail_loss = norm.expect(lambda x: x, loc=pm, scale=ps, lb=var)
+    if distribution == allowed_distributions[1]:
+        fitted = t.fit(losses)
+        var = t.ppf(ci, *fitted)
+        tail_loss = t.expect(lambda y: y, args=(fitted[0],), loc=fitted[1], scale=fitted[2], lb=var)
+    cvar = (1 / (1 - ci)) * tail_loss
+
+    return cvar
 
 def get_factor_exposures(factor_betas, weights):
     return factor_betas.loc[weights.index].T.dot(weights)
