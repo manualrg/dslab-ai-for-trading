@@ -16,6 +16,15 @@ def partial_dot_product(v, w):
     common = v.index.intersection(w.index)
     return np.sum(v[common] * w[common])
 
+def sharpe_ratio(returns, ann_period):
+    """
+    Compute (annualized) sharpe ratio (risk adjusted returns) on a series of returns
+    :param returns: pandas Series with pct returns
+    :param ann_period: input to annualization factor, 12 if monthly, 252 if daily, so on
+    :return: sharpe ratio (float)
+    """
+    return np.sqrt(ann_period) * returns.mean() / returns.std()
+
 def get_factor_exposures(factor_betas, weights):
     return factor_betas.loc[weights.index].T.dot(weights)
 
@@ -44,44 +53,8 @@ def get_portfolio_alpha_exposure(B_alpha, h_star):
         alpha_factor_names = range(0, B_alpha.shape[1])
     return pd.Series(np.matmul(B_alpha.transpose(), h_star), index=alpha_factor_names)
 
-from src.portfolio_opt import cvx_opt, cvx_opt_tc
 
-def run_simple_backtesting(B_alpha, alpha_factor_name, risk_model, daily_returns, n_days_delay, *args, **kwargs):
-
-    assert isinstance(daily_returns.index, pd.DatetimeIndex), "daily_returns must have a DatetimeIndex"
-
-    STR_DATE_FMT = "%Y%m%d"
-    port = {}
-    bkt_dt_set = daily_returns.index[:-n_days_delay]
-    bkt_dt_subset_loop = bkt_dt_set[:-n_days_delay]
-
-
-    pnl = pd.DataFrame(index=bkt_dt_set, columns=['daily_pnl', 'daily_transaction_cost'])
-
-    for bkt_dt in tqdm(bkt_dt_subset_loop, desc='Opt portfolio', unit='portfolio'):
-        bkt_str_dt = dt.datetime.strftime(bkt_dt, STR_DATE_FMT)
-        alpha_vector = B_alpha.loc[bkt_dt, alpha_factor_name].copy()
-        opt = cvx_opt.OptimalHoldingsRegualization(**kwargs)
-        w_opt = opt.find(alpha_vector, risk_model['factor_betas'], risk_model['factor_cov_matrix'],
-                         risk_model['idiosyncratic_var_vector'])
-        port[bkt_str_dt] = w_opt
-
-        # pnl
-        idx_bkt_dt = bkt_dt_set.get_loc(bkt_dt)
-        realization_dt = bkt_dt_set[idx_bkt_dt + n_days_delay]
-
-        daily_rets = daily_returns.loc[realization_dt]
-        port_pnl = partial_dot_product(v=w_opt, w=daily_rets)
-        pnl.loc[bkt_dt, 'daily_pnl'] = port_pnl
-
-    pnl['daily_transaction_cost'] = 0
-    pnl['daily_total'] = pnl['daily_pnl'] - pnl['daily_transaction_cost']
-    pnl['total'] = pnl['daily_total'].cumsum()
-
-    return pnl, port
-
-
-def run_backtesting(opt_engine, alpha_factor, risk_model, daily_returns, daily_adv, n_days_delay):
+def run_backtesting(opt_engine, flg_trans_cost, alpha_factor, risk_model, daily_returns, daily_adv, n_days_delay):
 
     assert isinstance(daily_returns.index, pd.DatetimeIndex), "daily_returns must have a DatetimeIndex"
 
@@ -98,14 +71,14 @@ def run_backtesting(opt_engine, alpha_factor, risk_model, daily_returns, daily_a
         bkt_str_dt = dt.datetime.strftime(bkt_dt, STR_DATE_FMT)
         alpha_vector = alpha_factor.loc[bkt_dt].copy()
 
-        if hasattr(opt_engine, 'est_trans_cost'):
+        adv_vector = daily_adv.loc[bkt_dt].copy()
+        w_opt = opt_engine.find(alpha_vector, w_prev, adv_vector, risk_model['factor_betas'],
+                                risk_model['factor_cov_matrix'], risk_model['idiosyncratic_var_vector'], flg_trans_cost)
+
+        if flg_trans_cost:
             adv_vector = daily_adv.loc[bkt_dt].copy()
-            w_opt = opt_engine.find(alpha_vector, w_prev, adv_vector, risk_model['factor_betas'],
-                             risk_model['factor_cov_matrix'], risk_model['idiosyncratic_var_vector'])
             trans_cost = opt_engine.est_trans_cost(w_prev, w_opt, adv_vector)
         else:
-            w_opt = opt_engine.find(alpha_vector, risk_model['factor_betas'], risk_model['factor_cov_matrix'],
-                         risk_model['idiosyncratic_var_vector'])
             trans_cost = 0.0
 
         port[bkt_str_dt] = w_opt
@@ -120,6 +93,7 @@ def run_backtesting(opt_engine, alpha_factor, risk_model, daily_returns, daily_a
 
     pnl['returns_date'] = pd.to_datetime(pnl['returns_date'])
     pnl['daily_total'] = pnl['daily_pnl'] - pnl['daily_transaction_cost']
-    pnl['total'] = pnl['daily_total'].cumsum()
+    pnl['accum_total'] = pnl['daily_total'].cumsum()
+    pnl['accum_transaction_cost'] = pnl['daily_transaction_cost'].cumsum()
 
     return pnl, port
