@@ -15,7 +15,15 @@ if __name__ == '__main__' and __package__ is None:
 
     sns.set_context("talk")
     plt.style.use('ggplot')
+
     plt.rcParams['figure.figsize'] = (16, 8)
+    plt.rcParams['figure.titlesize'] = 24
+
+    plt.rcParams['axes.labelsize'] = 16
+    plt.rcParams['axes.titlesize'] = 20
+    plt.rcParams['font.size'] = 12
+    #plt.rcParams['legend.title_fontsize '] = 14
+    plt.rcParams['legend.fontsize'] = 12
 
 
 
