@@ -119,7 +119,7 @@ class OptimalHoldingsRegualization():
 
         optimal_weights = np.asarray(weights.value).flatten()
 
-        return pd.Series(data=optimal_weights, index=alpha_vector.index)
+        return pd.Series(data=optimal_weights, index=alpha_vector.index, name='w_opt')
 
     def est_trans_cost(self, w_prev, w_opt, adv_vector):
         """
