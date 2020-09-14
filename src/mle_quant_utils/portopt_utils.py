@@ -171,6 +171,7 @@ def join_weights_and_pnl(w_opt_df, pnl, returns):
 
     pnl_and_w_df['daily_asset_pnl'] = pnl_and_w_df['w_opt'] * pnl_and_w_df['returns']
     pnl_and_w_df['position'] = pnl_and_w_df['w_opt'].apply(lambda x: '1.long' if x > 0 else '2.short')
+    pnl_and_w_df['abs_w_opt'] = abs(pnl_and_w_df['w_opt'])
 
     return pnl_and_w_df
 
