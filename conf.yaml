@@ -1,0 +1,74 @@
+quantopian:
+    dataset1:
+        bundle_folder: module_4_quizzes_eod
+        bundle_name: m4-quiz-eod-quotemedia
+        sector_folder: project_4_sector
+        sector_data: data.npy
+        sector_names: sector_names.csv
+    dataset2:
+        bundle_folder: project_4_eod
+        bundle_name: eod-quotemedia
+        sector_folder: project_4_sector
+        sector_data: data.npy
+        sector_names: sector_names.csv
+    dataset3:
+        bundle_folder: project_7_eod
+        bundle_name: eod-quotemedia
+        sector_folder: project_7_sector
+        sector_data: data.npy
+        sector_names: sector_names.csv
+
+output:
+    main: output
+    alpha_factors_ml:
+        folder: alpha_models
+        features: features.csv
+        targets: targets.csv
+        preds: ml_alpha_preds.csv
+        model: alpha_model.pkl
+        model_metadata: alpha_model_metadata.pkl
+    risk_factors:
+        folder: risk_models
+        model: risk_model.pkl
+        model_metadata: risk_model_metadata.pkl
+    opt_portfolio:
+        folder: opt_port
+        pnl_results: backtesting_pnl.csv
+        model: bkt_port_weights.pkl
+        model_metadata: bkt_port_metadata.pkl
+    interim:
+        pricing: pricing_5yrs.csv
+        volume: volume_5yrs.csv
+        all_factors: all_factors_3yrs.csv
+        all_forwreturns: forw_returns_3yrs.csv
+        sector_factors: sector_cat_factor_3yrs.csv
+
+models:
+    universe:
+        window: 120
+        adv_top: 500
+        start: 2016-01-05
+        end_alpha: 2013-01-03
+        end_risk: 2011-01-05
+    alpha_ml:
+        tau: 5
+        target_col: target
+        split_col: split
+        splits:
+            train: 0.6
+            valid: 0.2
+            test: 0.2
+
+backtesting:
+    transcost_adv_win: 30
+    transcost_adv_impute: 1e4
+    n_days_delay: 2
+    opt_port:
+        risk_aversion: 1e-6
+        min_mkt_cap: 1e8
+        lambda_reg: 0.5
+        risk_cap: 0.05
+        factor_max: 10.0
+        factor_min: -10.0
+        weights_max: 0.55
+        weights_min: -0.55
