@@ -17,9 +17,24 @@ class SecAPI(object):
         return requests.get(url)
 
     def get(self, url):
+        """
+        Performs actual donwloading of a SEC filling, given a index-url
+        :param url:
+        :return: filling text
+        """
         return self._call_sec(url).text
 
 def get_sec_data(sec_api, cik, newest_pricing_data, doc_type, start=0, count=60):
+    """
+    Download SEC index urls for a set of tickers (cik) in safe way (api rate limit)
+    :param sec_api:  SecAPI instance
+    :param cik: dictionary of tickers-cik (SEC Central Key Index)
+    :param newest_pricing_data: Latest date to request data
+    :param doc_type: SEC document type (like 10-Ks)
+    :param start:
+    :param count:
+    :return: dict(ticker: (index_url, file_type, file_date))
+    """
     newest_pricing_data = pd.to_datetime(newest_pricing_data)
     rss_url = 'https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany' \
         '&CIK={}&type={}&start={}&count={}&owner=exclude&output=atom' \
@@ -37,10 +52,10 @@ def get_sec_data(sec_api, cik, newest_pricing_data, doc_type, start=0, count=60)
     return entries
 
 
-
-
 def get_documents(text):
     """
+    Each filling is broken into several associated documents, sectioned off in the fillings with the tags:
+      <DOCUMENT> </DOCUMENT>
     Extract the documents from the text
 
     Parameters
@@ -74,6 +89,7 @@ def get_documents(text):
 
 def get_document_type(doc):
     """
+    The document type is located on a line with the <TYPE> tag.
     Return the document type lowercased
 
     Parameters
@@ -133,6 +149,7 @@ def plot_similarities(similarities_list, dates, title, labels):
 
     plt.show()
 
+# {ticker: cik}
 cik_lookup = {
     'AMZN': '0001018724',
     'BMY': '0000014272',
