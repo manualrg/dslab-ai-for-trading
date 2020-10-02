@@ -1,19 +1,15 @@
-
 import os
 import pandas as pd
 import numpy as np
 
-import re
-from bs4 import BeautifulSoup
-from nltk.stem import WordNetLemmatizer
-from nltk.corpus import wordnet
-from nltk.corpus import stopwords
-
-from collections import defaultdict, Counter
 from sklearn.feature_extraction.text import CountVectorizer
-from sklearn.metrics import jaccard_similarity_score
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
+from sklearn.metrics import jaccard_score
+from bs4 import BeautifulSoup
+from nltk.stem import WordNetLemmatizer
+
+from src.load_data import io_utils
 
 
 def remove_html_tags(text):
@@ -51,8 +47,6 @@ def lemmatize_words(wlm: WordNetLemmatizer, words):
     return lemmatized_words
 
 
-from src.load_data import  io_utils
-
 def get_sentiment_loughran_mcdonald():
     """
     https://sraf.nd.edu/textual-analysis/resources/
@@ -70,10 +64,6 @@ def get_sentiment_loughran_mcdonald():
     sentiment_df = sentiment_df[(sentiment_df[sentiments]).any(1)]
 
     return sentiment_df
-
-
-from collections import defaultdict, Counter
-from sklearn.feature_extraction.text import CountVectorizer
 
 
 def get_bag_of_words(sentiment_words, docs):
@@ -104,9 +94,6 @@ def get_bag_of_words(sentiment_words, docs):
     return bag_of_words.toarray()
 
 
-from sklearn.feature_extraction.text import TfidfVectorizer
-
-
 def get_tfidf(sentiment_words, docs):
     """
     Generate TFIDF values from documents for a certain sentiment
@@ -131,9 +118,6 @@ def get_tfidf(sentiment_words, docs):
     return tfidf.toarray()
 
 
-from sklearn.metrics import jaccard_score
-
-
 def get_jaccard_similarity(bag_of_words_matrix):
     """
     Get jaccard similarities for neighboring documents
@@ -150,7 +134,6 @@ def get_jaccard_similarity(bag_of_words_matrix):
     jaccard_similarities : list of float
         Jaccard similarities for neighboring documents
     """
-
 
     jaccard_similarities = []
     n_rows, _ = bag_of_words_matrix.shape
