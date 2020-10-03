@@ -118,14 +118,14 @@ def get_tfidf(sentiment_words, docs):
     return tfidf.toarray()
 
 
-def get_jaccard_similarity(bag_of_words_matrix):
+def get_jaccard_similarity(bow_matrix):
     """
     Get jaccard similarities for neighboring documents
 
     Parameters
     ----------
-    bag_of_words : 2-d Numpy Ndarray of int
-        Bag of words sentiment for each document
+    bow_matrix : 2-d array-like (Numpy Ndarray or Pandas DataFrame) of int
+        Bag of words representation for each document
         The first dimension is the document.
         The second dimension is the word.
 
@@ -134,13 +134,20 @@ def get_jaccard_similarity(bag_of_words_matrix):
     jaccard_similarities : list of float
         Jaccard similarities for neighboring documents
     """
+    if isinstance(bow_matrix, pd.DataFrame):
+        matrix = bow_matrix.values
+    else:
+        matrix = bow_matrix
+
+    assert np.issubclass_(matrix.dtype.type, np.integer), "Input bow_matrix should be integer dtype"
 
     jaccard_similarities = []
-    n_rows, _ = bag_of_words_matrix.shape
+    n_rows, _ = matrix.shape
+    matrix = np.where(matrix > 0, True, False)
     for row_idx in range(n_rows - 1):
-        # Vectors to compare are casted to bool
-        vec_t = np.where(bag_of_words_matrix[row_idx] > 0, True, False)
-        vec_t1 = np.where(bag_of_words_matrix[row_idx + 1] > 0, True, False)
+        # Fetch vector rows from matrix in 1d shape
+        vec_t = matrix[row_idx, :]
+        vec_t1 = matrix[row_idx + 1, :]
         # Compute distance
         dist = jaccard_score(y_true=vec_t, y_pred=vec_t1)
         # Append to al list where element "i" is d(v[t,:], v[t+1,:])
@@ -148,14 +155,14 @@ def get_jaccard_similarity(bag_of_words_matrix):
     return jaccard_similarities
 
 
-def get_cosine_similarity(tfidf_matrix):
+def get_cosine_similarity(bow_matrix):
     """
     Get cosine similarities for each neighboring TFIDF vector/document
 
     Parameters
     ----------
-    tfidf : 2-d Numpy Ndarray of float
-        TFIDF sentiment for each document
+    bow_matrix : 2-d array-like (Numpy Ndarray or Pandas DataFrame) of float or nint
+        TFIDF or BoW representation for each document
         The first dimension is the document.
         The second dimension is the word.
 
@@ -164,14 +171,18 @@ def get_cosine_similarity(tfidf_matrix):
     cosine_similarities : list of float
         Cosine similarities for neighboring documents
     """
+    if isinstance(bow_matrix, pd.DataFrame):
+        matrix = bow_matrix.values
+    else:
+        matrix = bow_matrix
 
     cosine_similarities = []
-    n_rows, _ = tfidf_matrix.shape
+    n_rows, _ = matrix.shape
 
     for row_idx in range(n_rows - 1):
-        # Fetch vector rows from matrix in shape: (1, n_words)
-        vec_t = tfidf_matrix[row_idx].reshape(1, -1)
-        vec_t1 = tfidf_matrix[row_idx + 1].reshape(1, -1)
+        # Fetch vector rows from matrix in 2d shape: (1, n_words)
+        vec_t = matrix[row_idx].reshape(1, -1)
+        vec_t1 = matrix[row_idx + 1].reshape(1, -1)
         # Append to a list where element "i" is d(v[t,:], v[t+1,:])
         dist = cosine_similarity(vec_t, vec_t1).reshape(-1)[0]
         # Compute distance
