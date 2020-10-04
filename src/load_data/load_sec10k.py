@@ -90,7 +90,7 @@ def get_documents(text):
 def get_document_type(doc):
     """
     The document type is located on a line with the <TYPE> tag.
-    Return the document type lowercased
+    Return the document type upcased
 
     Parameters
     ----------
@@ -100,14 +100,14 @@ def get_document_type(doc):
     Returns
     -------
     doc_type : str
-        The document type lowercased
+        The document type upcased
     """
 
     regex_type = re.compile(r'(<TYPE>)(.*)')
     matches = regex_type.finditer(doc)
     doc_type = [match.group(2) for match in matches]
 
-    return doc_type[0].lower()
+    return doc_type[0].upper()
 
 
 
