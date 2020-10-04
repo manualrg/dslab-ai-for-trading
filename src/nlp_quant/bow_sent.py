@@ -9,8 +9,6 @@ from sklearn.metrics import jaccard_score
 from bs4 import BeautifulSoup
 from nltk.stem import WordNetLemmatizer
 
-from src.load_data import io_utils
-
 
 def remove_html_tags(text):
     text = BeautifulSoup(text, 'html.parser').get_text()
@@ -40,30 +38,9 @@ def lemmatize_words(wlm: WordNetLemmatizer, words):
         List of lemmatized words
     """
 
-    # Instanciate WordNet Lemmatizer
-
     # Apply lemmatization supposing verb PoS
     lemmatized_words = [wlm.lemmatize(token, pos='v') for token in words]
     return lemmatized_words
-
-
-def get_sentiment_loughran_mcdonald():
-    """
-    https://sraf.nd.edu/textual-analysis/resources/
-    :return:
-    """
-    path_loughran_mcdonald = os.path.join(io_utils.raw_path, 'financial_sentiment', '')
-    sentiment_df = pd.read_csv(path_loughran_mcdonald + 'loughran_mcdonald_master_dic_2016.csv')
-
-    # Lowercase columns, Remove unused information
-    sentiment_df.columns = [column.lower() for column in sentiment_df.columns]
-
-    sentiments = ['negative', 'positive', 'uncertainty', 'litigious', 'constraining', 'interesting']
-    sentiment_df = sentiment_df[sentiments + ['word']]
-    sentiment_df[sentiments] = sentiment_df[sentiments].astype(bool)
-    sentiment_df = sentiment_df[(sentiment_df[sentiments]).any(1)]
-
-    return sentiment_df
 
 
 def get_bag_of_words(sentiment_words, docs):
@@ -88,7 +65,7 @@ def get_bag_of_words(sentiment_words, docs):
     # CountVectorizer implements the following steps by default:
     # strip_accents: None (Not considered)
     # lowercase: True (sentiment words are lowercased)
-    # stop_words: None (not necesary, as vocabulary is supplied)
+    # stop_words: None (not necessary, as vocabulary is supplied)
     count_vect = CountVectorizer(vocabulary=sentiment_words).fit(docs)
     bag_of_words = count_vect.transform(docs)
     return bag_of_words.toarray()

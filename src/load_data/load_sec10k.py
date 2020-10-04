@@ -3,8 +3,11 @@ import requests
 import pandas as pd
 from bs4 import BeautifulSoup
 import re
-
+import os
 from ratelimit import limits, sleep_and_retry
+from tqdm import tqdm
+
+from src.load_data import io_utils
 
 class SecAPI(object):
     SEC_CALL_LIMIT = {'calls': 10, 'seconds': 1}
@@ -24,32 +27,35 @@ class SecAPI(object):
         """
         return self._call_sec(url).text
 
-def get_sec_data(sec_api, cik, newest_pricing_data, doc_type, start=0, count=60):
+def get_sec_data(sec_api, cik, doc_type, start=0, count=60):
     """
     Download SEC index urls for a set of tickers (cik) in safe way (api rate limit)
     :param sec_api:  SecAPI instance
     :param cik: dictionary of tickers-cik (SEC Central Key Index)
-    :param newest_pricing_data: Latest date to request data
     :param doc_type: SEC document type (like 10-Ks)
     :param start:
     :param count:
     :return: dict(ticker: (index_url, file_type, file_date))
     """
-    newest_pricing_data = pd.to_datetime(newest_pricing_data)
+
     rss_url = 'https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany' \
         '&CIK={}&type={}&start={}&count={}&owner=exclude&output=atom' \
         .format(cik, doc_type, start, count)
     sec_data = sec_api.get(rss_url)
     feed = BeautifulSoup(sec_data.encode('ascii'), 'xml').feed
-    entries = [
-        (
-            entry.content.find('filing-href').getText(),
-            entry.content.find('filing-type').getText(),
-            entry.content.find('filing-date').getText())
-        for entry in feed.find_all('entry', recursive=False)
-        if pd.to_datetime(entry.content.find('filing-date').getText()) <= newest_pricing_data]
 
-    return entries
+    if feed is None:
+        print(f'Missing CIK: {cik} filling: {doc_type}')
+    else:
+        entries = []
+        for entry in feed.find_all('entry', recursive=False):
+            entry_tup = (
+                entry.content.find('filing-href').getText(),
+                entry.content.find('filing-type').getText(),
+                entry.content.find('filing-date').getText()
+            )
+            entries.append(entry_tup)
+        return entries
 
 
 def get_documents(text):
@@ -109,6 +115,44 @@ def get_document_type(doc):
 
     return doc_type[0].upper()
 
+from zipfile import ZipFile
+import shutil
+import gzip
+
+def run_download_and_parse(sec_data, sec_api, path, doc_type, oldest_filling_date: str = '2000-01-01'):
+    """
+
+    :param sec_data:
+    :param sec_api:
+    :param path:
+    :param doc_type:
+    :param oldest_filling_date:
+    :return:
+    """
+    #staging_path = os.path.join(path, 'staging', '')
+    #if not os.path.isdir(staging_path):
+    #    os.mkdir(staging_path)
+
+    start_dt = pd.Timestamp(oldest_filling_date)
+    doc_type_path = doc_type.replace('-', '').lower()
+    extension = 'gz'  # no extension point
+
+    for ticker, data in sec_data.items():
+        ticker_path = ticker.lower()
+        for index_url, file_type, file_date in tqdm(data, desc=f'Downloading {ticker} Fillings', unit='filling'):
+            file_dt = pd.Timestamp(file_date)
+            file_date_path = file_date.replace('-', '')
+            if (file_type == doc_type):
+                file_url = index_url.replace('-index.htm', '.txt').replace('.txtl', '.txt')
+
+                raw_filling = sec_api.get(file_url)
+                raw_extracted_docs = get_documents(raw_filling)
+                for document in raw_extracted_docs:
+                    outfilename = f"{path}{ticker_path}_{doc_type_path}_{file_date_path}.{extension}"
+                    if not os.path.isfile(outfilename):
+                        if (get_document_type(document) == doc_type) and (file_dt >= start_dt):
+                            with gzip.GzipFile(outfilename, "wb") as gzip_text_file:
+                                gzip_text_file.write(document.encode())
 
 
 def print_ten_k_data(ten_k_data, fields, field_length_limit=50):
@@ -149,11 +193,42 @@ def plot_similarities(similarities_list, dates, title, labels):
 
     plt.show()
 
-# {ticker: cik}
+def get_sentiment_loughran_mcdonald():
+    """
+    https://sraf.nd.edu/textual-analysis/resources/
+    :return:
+    """
+    path_loughran_mcdonald = os.path.join(io_utils.raw_path, 'financial_sentiment', '')
+    sentiment_df = pd.read_csv(path_loughran_mcdonald + 'loughran_mcdonald_master_dic_2016.csv')
+
+    # Lowercase columns, Remove unused information
+    sentiment_df.columns = [column.lower() for column in sentiment_df.columns]
+
+    sentiments = ['negative', 'positive', 'uncertainty', 'litigious', 'constraining', 'interesting']
+    sentiment_df = sentiment_df[sentiments + ['word']]
+    sentiment_df[sentiments] = sentiment_df[sentiments].astype(bool)
+    sentiment_df = sentiment_df[(sentiment_df[sentiments]).any(1)]
+
+    return sentiment_df
+
+def get_cik_mapping():
+    """
+    SEC CIK to ticker mapping
+    https://www.sec.gov/include/ticker.txt
+    :return: pandas DataFrame
+    """
+    path_sec_cik = os.path.join(io_utils.raw_path, 'sec_fillings', '')
+    sec_cik_df = pd.read_csv(path_sec_cik + 'sec_cik.csv')
+    sec_cik_df['cik'] = sec_cik_df['cik'].apply(lambda x: f'{x:010d}')
+
+    return sec_cik_df
+
+
 cik_lookup = {
     'AMZN': '0001018724',
-    'BMY': '0000014272',
-    'CNP': '0001130310',
+    'BMY': '0000014272'}
+
+a = {'CNP': '0001130310',
     'CVX': '0000093410',
     'FL': '0000850209',
     'FRT': '0000034903',
