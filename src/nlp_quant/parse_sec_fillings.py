@@ -30,7 +30,7 @@ def get_filling_doc(filling: str, target_doc: str = '10-K'):
     return document
 
 
-def get_10k_risk_sections_df(text: str):
+def get_10k_risk_sections_df(text: str, file: str):
     """
     Match all four patterns for Items 1A, 7, and 7A. Item 1A can be found in either of the following patterns:
         >Item 1A
@@ -51,7 +51,7 @@ def get_10k_risk_sections_df(text: str):
     try:
         first_match = next(matches)
     except:
-        print("No match!")  # action for no match
+        print(f"No match in file: {file}")  # action for no match
         test_df = pd.DataFrame(data=[['all', 0, 0]], columns=pos_dat_columns)
     else:
         test_df = pd.DataFrame(data=[(x.group(), x.start(), x.end()) for x in matches], columns=pos_dat_columns)
@@ -67,7 +67,11 @@ def get_10k_risk_sections_df(text: str):
     pos_dat = test_df.sort_values('start', ascending=True).drop_duplicates(subset=['item'], keep='last')
     pos_dat.set_index('item', inplace=True)
     pos_dat['next_start'] = pos_dat['end'].shift(-1)
-    pos_dat.iloc[-1, -1] = len(text)
+    try:
+        pos_dat.iloc[-1, -1] = len(text)
+    except:
+        print(f"Empty pos_dat in  file: {file}")
+        pos_dat = pd.DataFrame(index=['all'], data=[[0, 0, len(text)]], columns=['start', 'end', 'next_start'])
 
     return pos_dat
 
@@ -116,33 +120,45 @@ def get_risk_sections_and_parse(inpath, outpath, write_gzip=True):
     """
     in_listdir = os.listdir(inpath)
     control_lst = []
+    n_exist = 0
     for file in in_listdir:
         ticker, doc_type, date = file.split("_")
         date = date.split(".")[0]
-        with gzip.open(inpath + file, "rb") as f:
-            doc = f.read()
-        doc = doc.decode()
-
-        tenk_risk_pos_dat = get_10k_risk_sections_df(text=doc)
-        tenk_risk_sections = get_section_text(text=doc, pos_dat=tenk_risk_pos_dat)
-
-        sections = []
-        for item, section in tenk_risk_sections.items():
-            section_clean = clean_text(section)
-            sections.append(section_clean)
-        doc_clean = " ".join(sections)
+        infilename = inpath + file
 
         if write_gzip:
-            with gzip.GzipFile(outpath + file, "wb") as gzip_text_file:
-                gzip_text_file.write(doc_clean.encode())
+            outfilename = outpath + file
         else:
-            with open(outpath + file.split(".")[0] + ".txt", "w") as text_file:
-                text_file.write(doc_clean)
+            outfilename = outpath + file.split(".")[0] + ".txt"
 
-        tenk_risk_pos_dat['ticker'] = ticker
-        tenk_risk_pos_dat['doc_type'] = doc_type
-        tenk_risk_pos_dat['date'] = dt.datetime.strptime(date, "%Y%m%d")
+        if os.path.isfile(outfilename):
+            n_exist += 1
+        else:
+            with gzip.open(infilename, "rb") as f:
+                doc = f.read()
+            doc = doc.decode()
 
-        control_lst.append(tenk_risk_pos_dat)
+            tenk_risk_pos_dat = get_10k_risk_sections_df(text=doc, file=file)
+            tenk_risk_sections = get_section_text(text=doc, pos_dat=tenk_risk_pos_dat)
+
+            sections = []
+            for item, section in tenk_risk_sections.items():
+                section_clean = clean_text(section)
+                sections.append(section_clean)
+            doc_clean = " ".join(sections)
+
+            if write_gzip:
+                with gzip.GzipFile(outfilename, "wb") as gzip_text_file:
+                    gzip_text_file.write(doc_clean.encode())
+            else:
+                with open(outfilename, "w") as text_file:
+                    text_file.write(doc_clean)
+
+            tenk_risk_pos_dat['ticker'] = ticker
+            tenk_risk_pos_dat['doc_type'] = doc_type
+            tenk_risk_pos_dat['date'] = dt.datetime.strptime(date, "%Y%m%d")
+
+            control_lst.append(tenk_risk_pos_dat)
+    print(f'Number of files that existed previously: {n_exist}')
 
     return pd.concat(control_lst, axis=0)
