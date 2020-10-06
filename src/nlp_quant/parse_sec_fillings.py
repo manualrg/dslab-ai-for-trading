@@ -1,5 +1,9 @@
 import re
 import pandas as pd
+import datetime as dt
+import os
+import gzip
+from bs4 import BeautifulSoup
 
 def get_filling_doc(filling: str, target_doc: str = '10-K'):
     """
@@ -92,9 +96,6 @@ def get_section_text(text: str, pos_dat: pd.DataFrame):
 
     return docs
 
-import os
-import gzip
-from bs4 import BeautifulSoup
 
 def remove_html_tags(text):
     text = BeautifulSoup(text, 'html.parser').get_text()
@@ -108,15 +109,20 @@ def clean_text(text):
 
     return text
 
-import datetime as dt
 
 def get_risk_sections_and_parse(inpath, outpath, write_gzip=True):
     """
-
-    :param inpath:
-    :param outpath:
-    :param write_gzip:
-    :return:
+    Get documents in .gzip from an input folder, and for each document perform parsing operations before storing it
+    on an output folder (in .gzip or .txt)
+    Parsing operations:
+        Create a df with index of each item label. Targeted items are: Items 1A, 7, and 7A
+        Use the index to fetch each section from input document
+        Remove and clean each section
+        Concatenate each section into a clean_doc
+    :param inpath: input folder containing each file in .gzip. Expected naming convention: {ticker}_{doc_type}_{date}
+    :param outpath: out folder. Naming convention is maintained
+    :param write_gzip: If True, output file gziped
+    :return: control_df pandas DataFrame reporting each document parsing process
     """
     in_listdir = os.listdir(inpath)
     control_lst = []
