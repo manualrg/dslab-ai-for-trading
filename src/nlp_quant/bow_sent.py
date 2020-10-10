@@ -1,13 +1,24 @@
 import os
+import gzip
+import logging
+import datetime as dt
+
 import pandas as pd
 import numpy as np
-
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.metrics import jaccard_score
 from bs4 import BeautifulSoup
 from nltk.stem import WordNetLemmatizer
+
+from tqdm import tqdm
+
+
+# Gets or creates a logger
+logger = logging.getLogger(__name__)
+# set log level
+logger.setLevel(logging.INFO)
 
 
 def remove_html_tags(text):
@@ -71,7 +82,7 @@ def get_bag_of_words(sentiment_words, docs):
     return bag_of_words.toarray()
 
 
-def get_tfidf(sentiment_words, docs):
+def get_tfidf(sentiment_words, docs, flg_sparse=True):
     """
     Generate TFIDF values from documents for a certain sentiment
 
@@ -92,7 +103,10 @@ def get_tfidf(sentiment_words, docs):
 
     tfidf_vect = TfidfVectorizer(vocabulary=sentiment_words).fit(docs)
     tfidf = tfidf_vect.transform(docs)
-    return tfidf.toarray()
+    if flg_sparse:
+        return tfidf
+    else:
+        return tfidf.toarray()
 
 
 def get_jaccard_similarity(bow_matrix):
@@ -166,3 +180,88 @@ def get_cosine_similarity(bow_matrix):
         cosine_similarities.append(dist)
 
     return cosine_similarities
+
+
+def filenames_to_index(in_listdir):
+
+    idx_df = pd.DataFrame(data=[doc.split(".")[0].split("_") for doc in in_listdir], columns=['ticker', 'doc_type', 'date'])
+    idx_df['date'] = idx_df['date'].apply(lambda x: dt.datetime.strptime(x, '%Y%m%d'))
+    doc_meta = pd.MultiIndex.from_frame(idx_df[['ticker', 'date']])
+
+    return doc_meta
+
+
+
+def batch_tfidf(inpath, batch_size, lemmatizer, stopwords, re_word_pattern, vocabs):
+    in_listdir = os.listdir(inpath)
+
+    n_batches = int(len(in_listdir)/batch_size)
+    in_listdir_batches = np.array_split(in_listdir, n_batches)
+    sent_tfidf_dict = dict(zip(vocabs.keys(), [[]]*len(vocabs)))
+
+    for batch in tqdm(in_listdir_batches, desc=f'Extracting tf-idf', unit='batch'):
+        tickers_lst = []
+        docs_meta = filenames_to_index(batch)
+        docs_lst = []
+        # Read docs and create a list of documents to process: docs_lst
+        for file in batch:
+            ticker, doc_type, date = file.split("_")
+            tickers_lst.append(ticker)
+            date = date.split(".")[0]
+            infilename = inpath + file
+
+            with gzip.open(infilename, "rb") as f:
+                doc = f.read()
+            doc = doc.decode()
+            docs_lst.append(doc)
+        # Compute tf-idf on a batch of documents
+        # a dict {sentiment: pandas DF} is returned. Each pandas DF is a tf-idf represenstantion of a batch of documents
+        # indexed by docs_meta as ticker-date pairs
+        # columns are each sentiment specific vocabulary
+        tfidf_batch = nlp_pipeline(docs=docs_lst, docs_meta=docs_meta,
+                     lemmatizer=lemmatizer, stopwords=stopwords, re_word_pattern=re_word_pattern, vocabs=vocabs)
+        # Add pandas DFs to an inner list {sentiment: [tfidf_batch (pandas DF)]}
+        for sent_key, sent_vocab in vocabs.items():
+            sent_tfidf_dict[sent_key] = sent_tfidf_dict[sent_key] + [tfidf_batch[sent_key]]
+
+        # logging set of tickers
+        logger.info(f'Tickers in batch: {list(set(tickers_lst))}')
+    # Concatenate inner lists elements {sentiment: tfidf_app}
+    for sent_key, sent_vocab in vocabs.items():
+        sent_tfidf_dict[sent_key] = pd.concat(sent_tfidf_dict[sent_key], axis=0)
+
+    return sent_tfidf_dict
+
+def nlp_pipeline(docs, docs_meta, lemmatizer, stopwords, re_word_pattern, vocabs):
+
+    assert len(docs) == len(docs_meta), "docs and docs_meta have the same length"
+
+    docs_lst = []
+    for doc in docs:
+        # tokenize
+        doc_lemma = lemmatize_words(lemmatizer, re_word_pattern.findall(doc))
+        # Remove stopwords
+        doc_lemma = " ".join([word for word in doc_lemma if word not in stopwords])
+        docs_lst.append(doc_lemma)
+
+    sent_tfidf_dict = {}
+    for sent_key, sent_vocab in vocabs.items():
+        sent_tfidf = pd.DataFrame.sparse.from_spmatrix(index=docs_meta,
+                                  data=get_tfidf(sentiment_words=sent_vocab, docs=docs_lst),
+                                  columns=sent_vocab)
+        sent_tfidf_dict[sent_key] = sent_tfidf
+
+    return sent_tfidf_dict
+
+import pickle
+
+def write_sent_tfidf_dict(path, name, sent_tfidf_dict):
+    with open(path + name, 'wb') as file:
+        pickle.dump(sent_tfidf_dict, file)
+
+
+def read_sent_tfidf_dict(path, name):
+    with open(path + name, 'rb') as file:
+        sent_tfidf_dict = pickle.load(file)
+
+    return sent_tfidf_dict
