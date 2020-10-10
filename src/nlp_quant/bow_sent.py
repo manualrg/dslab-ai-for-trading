@@ -221,6 +221,7 @@ def batch_tfidf(inpath, batch_size, lemmatizer, stopwords, re_word_pattern, voca
         # a dict {sentiment: pandas DF} is returned. Each pandas DF is a tf-idf represenstantion of a batch of documents
         # indexed by docs_meta as ticker-date pairs
         # columns are each sentiment specific vocabulary
+        # TODO: Add doc len
         tfidf_batch = nlp_pipeline(docs=docs_lst, docs_meta=docs_meta,
                      lemmatizer=lemmatizer, stopwords=stopwords, re_word_pattern=re_word_pattern, vocabs=vocabs)
         # Add pandas DFs to an inner list {sentiment: [tfidf_batch (pandas DF)]}
@@ -245,6 +246,7 @@ def nlp_pipeline(docs, docs_meta, lemmatizer, stopwords, re_word_pattern, vocabs
         doc_lemma = lemmatize_words(lemmatizer, re_word_pattern.findall(doc))
         # Remove stopwords
         doc_lemma = " ".join([word for word in doc_lemma if word not in stopwords])
+        # TODO: Add doc len
         docs_lst.append(doc_lemma)
 
     sent_tfidf_dict = {}
@@ -267,6 +269,31 @@ def read_sent_tfidf_dict(path, name):
         sent_tfidf_dict = pickle.load(file)
 
     return sent_tfidf_dict
+
+
+def batch_doc_len(inpath, batch_size, re_word_pattern):
+    in_listdir = os.listdir(inpath)
+
+    n_batches = int(len(in_listdir) / batch_size)
+    in_listdir_batches = np.array_split(in_listdir, n_batches)
+
+    doc_len_df_lst = []
+    for batch in tqdm(in_listdir_batches, desc=f'Extracting tf-idf', unit='batch'):
+        docs_meta = filenames_to_index(batch)
+        docs_len_lst = []
+        # Read docs and create a list of documents to process: docs_lst
+        for file in batch:
+            ticker, doc_type, date = file.split("_")
+            infilename = inpath + file
+
+            with gzip.open(infilename, "rb") as f:
+                doc = f.read()
+            doc = doc.decode()
+            docs_len_lst.append(len(re_word_pattern.findall(doc)))  # Compute doc length
+
+        doc_len_df_lst.append(pd.Series(index=docs_meta, data=docs_len_lst, name='doc_len'))
+
+    return pd.concat(doc_len_df_lst)
 
 
 def compute_sentiment_alpha_factor(sent_scores, group_columns, sector_col, score_col):
