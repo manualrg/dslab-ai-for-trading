@@ -5,10 +5,13 @@ import datetime as dt
 
 import pandas as pd
 import numpy as np
+from scipy.stats import rankdata
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.metrics import jaccard_score
+import pickle
+
 from bs4 import BeautifulSoup
 from nltk.stem import WordNetLemmatizer
 
@@ -253,7 +256,6 @@ def nlp_pipeline(docs, docs_meta, lemmatizer, stopwords, re_word_pattern, vocabs
 
     return sent_tfidf_dict
 
-import pickle
 
 def write_sent_tfidf_dict(path, name, sent_tfidf_dict):
     with open(path + name, 'wb') as file:
@@ -265,3 +267,19 @@ def read_sent_tfidf_dict(path, name):
         sent_tfidf_dict = pickle.load(file)
 
     return sent_tfidf_dict
+
+
+def compute_sentiment_alpha_factor(sent_scores, group_columns, sector_col, score_col):
+    sent_scores_cp = sent_scores.copy()
+    # sector de-mean
+    sent_scores_cp['sector_mean'] = sent_scores.groupby(sector_col)[score_col].transform(np.mean)
+    sent_scores_cp['demean'] = sent_scores_cp[score_col] - sent_scores_cp['sector_mean']
+    # rank
+    sent_scores_cp['ranked'] = sent_scores_cp.groupby(group_columns)['demean'].transform(rankdata)
+    # zscore
+    sent_scores_cp['mu'] = sent_scores_cp.groupby(group_columns)['ranked'].transform(np.mean)
+    sent_scores_cp['sigma'] = sent_scores_cp.groupby(group_columns)['ranked'].transform(np.std)
+    sent_alphas = (sent_scores_cp['ranked'] - sent_scores_cp['mu']) / sent_scores_cp['sigma']
+    sent_alphas.name = score_col
+
+    return sent_alphas
