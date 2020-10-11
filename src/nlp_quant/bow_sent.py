@@ -310,3 +310,28 @@ def compute_sentiment_alpha_factor(sent_scores, group_columns, sector_col, score
     sent_alphas.name = score_col
 
     return sent_alphas
+
+def get_combined_tfidf(tf_idf_by_sent: dict):
+    removed_words = {}
+
+    for i, (sent_key, tfidf_mat) in enumerate(tf_idf_by_sent.items()):
+        if i == 0:
+            tfidf = tfidf_mat
+        else:
+            input_cols = tfidf_mat.columns.tolist()
+            current_cols = tfidf.columns.tolist()
+            remove_dupl = list(set(current_cols).intersection(set(input_cols)))
+
+            if len(remove_dupl) > 0:
+                removed_words[sent_key] = remove_dupl
+                select_cols = [x for x in input_cols if x not in remove_dupl]
+
+            else:
+                select_cols = input_cols
+            tfidf = tfidf.join(tfidf_mat[select_cols])
+
+    print('Number of removed words:')
+    for sent_key, rem_w in removed_words.items():
+        print(f'{sent_key}: {len(rem_w)}')
+
+    return tfidf
