@@ -296,16 +296,16 @@ def batch_doc_len(inpath, batch_size, re_word_pattern):
     return pd.concat(doc_len_df_lst)
 
 
-def compute_sentiment_alpha_factor(sent_scores, group_columns, sector_col, score_col):
+def compute_sentiment_alpha_factor(sent_scores, date_col, sector_col, score_col):
     sent_scores_cp = sent_scores.copy()
     # sector de-mean
-    sent_scores_cp['sector_mean'] = sent_scores.groupby(sector_col)[score_col].transform(np.mean)
+    sent_scores_cp['sector_mean'] = sent_scores.groupby([sector_col, date_col])[score_col].transform(np.mean)
     sent_scores_cp['demean'] = sent_scores_cp[score_col] - sent_scores_cp['sector_mean']
     # rank
-    sent_scores_cp['ranked'] = sent_scores_cp.groupby(group_columns)['demean'].transform(rankdata)
+    sent_scores_cp['ranked'] = sent_scores_cp.groupby(date_col)['demean'].transform(rankdata)
     # zscore
-    sent_scores_cp['mu'] = sent_scores_cp.groupby(group_columns)['ranked'].transform(np.mean)
-    sent_scores_cp['sigma'] = sent_scores_cp.groupby(group_columns)['ranked'].transform(np.std)
+    sent_scores_cp['mu'] = sent_scores_cp.groupby(date_col)['ranked'].transform(np.mean)
+    sent_scores_cp['sigma'] = sent_scores_cp.groupby(date_col)['ranked'].transform(np.std)
     sent_alphas = (sent_scores_cp['ranked'] - sent_scores_cp['mu']) / sent_scores_cp['sigma']
     sent_alphas.name = score_col
 
