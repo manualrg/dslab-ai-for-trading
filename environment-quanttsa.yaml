@@ -1,6 +1,5 @@
 name: quant-tsa
 channels:
-  - quantopian
   - conda-forge
   - anaconda
 dependencies:
@@ -22,6 +21,8 @@ dependencies:
   - shap==0.26.0
   - quandl==3.4.2
   - pandas-datareader==0.9.0
+  - nltk==3.5.0
   - pip:
     - https://files.pythonhosted.org/packages/34/fe/c3bef165ecca4f33c77c3e97aebf6fcd048c487fb2d1ba964839fa9fc38b/simfin-0.8.1-py3-none-any.whl
+    - ratelimit==2.2.0
   

@@ -17,6 +17,9 @@ quantopian:
         sector_folder: project_7_sector
         sector_data: data.npy
         sector_names: sector_names.csv
+    dataset4:
+        folder: project_5_yr
+        prices: yr-quotemedia.csv
 
 output:
     main: output

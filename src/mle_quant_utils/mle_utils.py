@@ -1,7 +1,45 @@
 import numpy as np
 import pandas as pd
 from sklearn.metrics import accuracy_score, mean_squared_error
+from scipy.stats import rankdata
+#
+def compute_fwd_targets(prices, tau, name, index_name='ticker'):
+    prices_cp = prices.copy()
+    prices_cp.columns = [x.lower() for x in prices_cp.columns]
+    targets = ((prices_cp.shift(-tau).subtract(prices_cp)).div(prices_cp)).stack()
+    targets.name = name
+    targets.index.rename(inplace=True, level=1, names=index_name)
 
+    return targets
+
+
+def train_test_split_by_date(df, train_test_split_yr):
+    idx_train = list(set([(date, ticker) for date, ticker in df.index if date < pd.Timestamp(train_test_split_yr)]))
+    idx_test = list(set([(date, ticker) for date, ticker in df.index if date >= pd.Timestamp(train_test_split_yr)]))
+
+    return idx_train, idx_test
+
+def wrap_train_test_into_series(idx_train, idx_test):
+    index = pd.MultiIndex.from_tuples(idx_train + idx_test, names=['Date', 'ticker'])
+    data =  ['train']*len(idx_train) + ['test']*len(idx_test)
+    return pd.Series(index=index, data=data, name='split')
+
+
+
+def compute_sentiment_alpha_factor(sent_scores, date_col, sector_col, score_col):
+    sent_scores_cp = sent_scores.copy()
+    # sector de-mean
+    sent_scores_cp['sector_mean'] = sent_scores.groupby([sector_col, date_col])[score_col].transform(np.mean)
+    sent_scores_cp['demean'] = sent_scores_cp[score_col] - sent_scores_cp['sector_mean']
+    # rank
+    sent_scores_cp['ranked'] = sent_scores_cp.groupby(date_col)['demean'].transform(rankdata)
+    # zscore
+    sent_scores_cp['mu'] = sent_scores_cp.groupby(date_col)['ranked'].transform(np.mean)
+    sent_scores_cp['sigma'] = sent_scores_cp.groupby(date_col)['ranked'].transform(np.std)
+    sent_alphas = (sent_scores_cp['ranked'] - sent_scores_cp['mu']) / sent_scores_cp['sigma']
+    sent_alphas.name = score_col
+
+    return sent_alphas
 
 # Region Prediction
 def get_pred_alpha(preds, kind='clf'):
